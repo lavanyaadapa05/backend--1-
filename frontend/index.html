@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PayFlow — Payments Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">₹</div>
+        <span>PayFlow</span>
+      </div>
+      <nav class="nav">
+        <button class="nav-item active" data-view="dashboard">
+          <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+          Dashboard
+        </button>
+        <button class="nav-item" data-view="create">
+          <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          New Payment
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="pulse-dot"></div>
+        <span id="conn-status">Checking API…</span>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <!-- DASHBOARD VIEW -->
+      <section id="view-dashboard" class="view active">
+        <header class="view-header">
+          <div>
+            <h1>Payments</h1>
+            <p class="subtitle">Track every payment through its lifecycle</p>
+          </div>
+          <button class="btn btn-primary" id="btn-new-payment">+ New Payment</button>
+        </header>
+
+        <div class="stats-row" id="stats-row">
+          <div class="stat-card"><span class="stat-label">Total</span><span class="stat-value" id="stat-total">0</span></div>
+          <div class="stat-card stat-created"><span class="stat-label">Created</span><span class="stat-value" id="stat-created">0</span></div>
+          <div class="stat-card stat-validated"><span class="stat-label">Validated</span><span class="stat-value" id="stat-validated">0</span></div>
+          <div class="stat-card stat-sent"><span class="stat-label">Sent</span><span class="stat-value" id="stat-sent">0</span></div>
+          <div class="stat-card stat-completed"><span class="stat-label">Completed</span><span class="stat-value" id="stat-completed">0</span></div>
+          <div class="stat-card stat-failed"><span class="stat-label">Failed</span><span class="stat-value" id="stat-failed">0</span></div>
+        </div>
+
+        <div class="toolbar">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 5L20.49 19l-5-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+            <input type="text" id="search-input" placeholder="Search by ID, account or reference…" />
+          </div>
+          <div class="status-tabs" id="status-tabs">
+            <button class="tab active" data-status="">All</button>
+            <button class="tab" data-status="CREATED">Created</button>
+            <button class="tab" data-status="VALIDATED">Validated</button>
+            <button class="tab" data-status="SENT">Sent</button>
+            <button class="tab" data-status="COMPLETED">Completed</button>
+            <button class="tab" data-status="FAILED">Failed</button>
+          </div>
+          <button class="btn btn-ghost" id="btn-refresh" title="Refresh">⟳</button>
+        </div>
+
+        <div class="table-wrap">
+          <table class="payments-table">
+            <thead>
+              <tr>
+                <th>Payment ID</th>
+                <th>Method</th>
+                <th>Amount</th>
+                <th>To</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="payments-tbody">
+              <tr><td colspan="7" class="empty-state">Loading payments…</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pagination" id="pagination"></div>
+      </section>
+
+      <!-- CREATE PAYMENT VIEW -->
+      <section id="view-create" class="view">
+        <header class="view-header">
+          <div>
+            <h1>New Payment</h1>
+            <p class="subtitle">Send money via UPI, Card or Net Banking</p>
+          </div>
+        </header>
+
+        <div class="create-card">
+          <div class="method-tabs" id="method-tabs">
+            <button class="method-tab active" data-method="UPI">
+              <span class="method-icon">📱</span> UPI
+            </button>
+            <button class="method-tab" data-method="CARD">
+              <span class="method-icon">💳</span> Card
+            </button>
+            <button class="method-tab" data-method="NETBANKING">
+              <span class="method-icon">🏦</span> Net Banking
+            </button>
+          </div>
+
+          <form id="payment-form" novalidate>
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Amount</label>
+                <div class="amount-input">
+                  <span id="currency-prefix">₹</span>
+                  <input type="number" id="f-amount" step="0.01" min="0.01" placeholder="0.00" required />
+                </div>
+                <small class="error-text" id="err-amount"></small>
+              </div>
+              <div class="form-group">
+                <label>Currency</label>
+                <select id="f-currency">
+                  <option value="INR">INR — Indian Rupee</option>
+                  <option value="USD">USD — US Dollar</option>
+                  <option value="EUR">EUR — Euro</option>
+                  <option value="GBP">GBP — British Pound</option>
+                  <option value="AED">AED — UAE Dirham</option>
+                  <option value="SGD">SGD — Singapore Dollar</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Source Account</label>
+                <input type="text" id="f-source" placeholder="e.g. ACC1001" required />
+                <small class="error-text" id="err-source"></small>
+              </div>
+              <div class="form-group">
+                <label>Destination Account</label>
+                <input type="text" id="f-destination" placeholder="e.g. ACC2002" required />
+                <small class="error-text" id="err-destination"></small>
+              </div>
+
+              <!-- UPI fields -->
+              <div class="form-group method-fields" data-for="UPI">
+                <label>UPI ID (VPA)</label>
+                <input type="text" id="f-upi-id" placeholder="name@bank" />
+                <small class="error-text" id="err-upi"></small>
+              </div>
+
+              <!-- Card fields -->
+              <div class="form-group method-fields hidden" data-for="CARD">
+                <label>Card Number</label>
+                <input type="text" id="f-card-number" placeholder="1234 5678 9012 3456" maxlength="19" />
+                <small class="error-text" id="err-card-number"></small>
+              </div>
+              <div class="form-group method-fields hidden" data-for="CARD">
+                <label>Cardholder Name</label>
+                <input type="text" id="f-card-name" placeholder="John Doe" />
+              </div>
+              <div class="form-group method-fields hidden" data-for="CARD">
+                <label>Expiry (MM/YYYY)</label>
+                <input type="text" id="f-card-expiry" placeholder="12/2028" maxlength="7" />
+              </div>
+              <div class="form-group method-fields hidden" data-for="CARD">
+                <label>CVV</label>
+                <input type="password" id="f-card-cvv" placeholder="123" maxlength="4" />
+              </div>
+
+              <!-- NetBanking fields -->
+              <div class="form-group method-fields hidden" data-for="NETBANKING">
+                <label>Bank Name</label>
+                <select id="f-bank-name">
+                  <option value="State Bank of India">State Bank of India</option>
+                  <option value="HDFC Bank">HDFC Bank</option>
+                  <option value="ICICI Bank">ICICI Bank</option>
+                  <option value="Axis Bank">Axis Bank</option>
+                  <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
+                  <option value="Citibank">Citibank</option>
+                </select>
+              </div>
+              <div class="form-group method-fields hidden" data-for="NETBANKING">
+                <label>Account Type</label>
+                <select id="f-bank-account-type">
+                  <option value="SAVINGS">Savings</option>
+                  <option value="CURRENT">Current</option>
+                </select>
+              </div>
+
+              <div class="form-group span-2">
+                <label>Reference / Description <span class="optional">(optional)</span></label>
+                <input type="text" id="f-reference" placeholder="e.g. Rent payment for July" />
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" class="btn btn-ghost" id="btn-cancel-create">Cancel</button>
+              <button type="submit" class="btn btn-primary btn-lg" id="btn-submit-payment">
+                <span id="submit-label">Pay Now</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Payment Details Modal -->
+  <div class="modal-overlay" id="details-modal">
+    <div class="modal">
+      <button class="modal-close" id="close-details">×</button>
+      <div id="details-content">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
+
