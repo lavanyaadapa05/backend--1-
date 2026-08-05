@@ -2,6 +2,7 @@ package com.paymentProccessing.backend.controller;
 
 import com.paymentProccessing.backend.dto.*;
 import com.paymentProccessing.backend.enums.PaymentStatus;
+import com.paymentProccessing.backend.enums.RiskLevel;
 import com.paymentProccessing.backend.service.PaymentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -41,6 +42,7 @@ public class PaymentController {
     @GetMapping
     public ResponseEntity<PageResponse<PaymentResponse>> listPayments(
             @RequestParam(required = false) PaymentStatus status,
+            @RequestParam(required = false) RiskLevel riskLevel,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
@@ -49,13 +51,26 @@ public class PaymentController {
 
         Sort sort = Sort.by(Sort.Direction.fromString(direction), sortBy);
         Pageable pageable = PageRequest.of(page, size, sort);
-        return ResponseEntity.ok(paymentService.listPayments(status, search, pageable));
+        return ResponseEntity.ok(paymentService.listPayments(status, riskLevel, search, pageable));
     }
 
     @Operation(summary = "Get the full status transition audit trail for a payment")
     @GetMapping("/{id}/history")
     public ResponseEntity<List<StatusHistoryResponse>> getHistory(@PathVariable String id) {
         return ResponseEntity.ok(paymentService.getHistory(id));
+    }
+
+    @Operation(summary = "Get the latest fraud/risk assessment for a payment (score, level, triggered rules, decision)")
+    @GetMapping("/{id}/risk")
+    public ResponseEntity<RiskAssessmentResponse> getRisk(@PathVariable String id) {
+        return ResponseEntity.ok(paymentService.getRisk(id));
+    }
+
+    @Operation(summary = "Bank operator approve/reject decision on a MEDIUM-risk payment held for review")
+    @PatchMapping("/{id}/risk-decision")
+    public ResponseEntity<PaymentResponse> decideRisk(@PathVariable String id,
+                                                       @Valid @RequestBody RiskDecisionRequest request) {
+        return ResponseEntity.ok(paymentService.decideRisk(id, request.getDecision(), "OPERATIONS_USER", request.getNotes()));
     }
 
     @Operation(summary = "Manually transition a payment's status (subject to the payment state machine)")

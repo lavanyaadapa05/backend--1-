@@ -2,9 +2,11 @@ package com.paymentProccessing.backend.dto;
 
 import com.paymentProccessing.backend.entity.Payment;
 import com.paymentProccessing.backend.enums.ErrorCode;
+import com.paymentProccessing.backend.enums.FraudStatus;
 import com.paymentProccessing.backend.enums.PaymentMethod;
 import com.paymentProccessing.backend.enums.PaymentStatus;
 import com.paymentProccessing.backend.enums.PaymentType;
+import com.paymentProccessing.backend.enums.RiskLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -53,6 +55,10 @@ public class PaymentResponse {
     private ErrorCode errorCode;
     private String errorMessage;
 
+    private Integer riskScore;
+    private RiskLevel riskLevel;
+    private FraudStatus fraudStatus;
+
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -85,6 +91,9 @@ public class PaymentResponse {
                 .routingNumber(p.getRoutingNumber())
                 .errorCode(p.getErrorCode())
                 .errorMessage(p.getErrorMessage())
+                .riskScore(p.getRiskScore())
+                .riskLevel(p.getRiskLevel())
+                .fraudStatus(p.getFraudStatus())
                 .createdAt(p.getCreatedAt())
                 .updatedAt(p.getUpdatedAt())
                 .build();

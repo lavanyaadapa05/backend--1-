@@ -3,6 +3,8 @@ package com.paymentProccessing.backend.entity;
 import com.paymentProccessing.backend.enums.PaymentMethod;
 import com.paymentProccessing.backend.enums.PaymentStatus;
 import com.paymentProccessing.backend.enums.PaymentType;
+import com.paymentProccessing.backend.enums.FraudStatus;
+import com.paymentProccessing.backend.enums.RiskLevel;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -129,6 +131,20 @@ public class Payment {
 
     @Column(length = 500)
     private String errorMessage;
+
+    // ---------- Fraud / risk screening ----------
+    /** Latest computed fraud risk score, 0-100 (higher = riskier). */
+    @Column
+    private Integer riskScore;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private RiskLevel riskLevel;
+
+    /** CLEARED / UNDER_REVIEW / BLOCKED — drives whether the payment is allowed to proceed. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private FraudStatus fraudStatus;
 
     @Version
     private Long version;
