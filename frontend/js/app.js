@@ -2,7 +2,8 @@
 (() => {
   const state = {
     view: "dashboard",
-    method: "UPI",
+    paymentType: null,
+    channel: null,
     status: "",
     search: "",
     page: 0,
@@ -49,7 +50,54 @@
   }
 
   function methodIcon(method) {
-    return { UPI: "📱", CARD: "💳", NETBANKING: "🏦" }[method] || "💰";
+    return {
+      UPI: "📱", CARD: "💳", NETBANKING: "🏦",
+      NEFT: "🏦", RTGS: "🏛️", IMPS: "⚡", SWIFT: "🌐", WIRE_TRANSFER: "💸",
+    }[method] || "💰";
+  }
+
+  // ---------------- Payment type / channel configuration ----------------
+  const CHANNELS = {
+    UPI: { type: "DOMESTIC", icon: "📱", label: "UPI" },
+    NEFT: { type: "DOMESTIC", icon: "🏦", label: "NEFT" },
+    RTGS: { type: "DOMESTIC", icon: "🏛️", label: "RTGS" },
+    IMPS: { type: "DOMESTIC", icon: "⚡", label: "IMPS" },
+    SWIFT: { type: "INTERNATIONAL", icon: "🌐", label: "SWIFT Transfer" },
+    WIRE_TRANSFER: { type: "INTERNATIONAL", icon: "💸", label: "Wire Transfer" },
+  };
+
+  const DOMESTIC_BANKS = [
+    "HSBC", "HDFC Bank", "ICICI Bank", "State Bank of India", "Axis Bank",
+    "Kotak Mahindra Bank", "Bank of Baroda", "Punjab National Bank", "IndusInd Bank",
+  ];
+  const INTERNATIONAL_BANKS = [
+    ...DOMESTIC_BANKS, "Citi", "JPMorgan Chase", "Bank of America", "Standard Chartered", "Deutsche Bank", "Barclays",
+  ];
+
+  const BENEFICIARY_COUNTRIES = [
+    "United States", "United Kingdom", "United Arab Emirates", "Singapore", "Germany",
+    "France", "Australia", "Canada", "Japan", "Switzerland", "Hong Kong", "Other",
+  ];
+
+  const PAYMENT_PURPOSES = [
+    "Family Maintenance", "Education Fees", "Business Payment", "Goods Purchase",
+    "Services Rendered", "Property Purchase", "Investment", "Loan Repayment", "Other",
+  ];
+
+  const CURRENCIES = { INR: "INR — Indian Rupee", USD: "USD — US Dollar", EUR: "EUR — Euro", GBP: "GBP — British Pound" };
+  const CURRENCY_SYMBOLS = { INR: "₹", USD: "$", EUR: "€", GBP: "£" };
+
+  const ACCOUNT_LABELS = {
+    UPI: { source: "Payer UPI ID", destination: "Payee UPI ID", sourcePlaceholder: "payer@bank", destinationPlaceholder: "payee@bank" },
+    NEFT: { source: "Sender Account Number", destination: "Beneficiary Account Number", sourcePlaceholder: "e.g. 000123456789", destinationPlaceholder: "e.g. 000987654321" },
+    RTGS: { source: "Sender Account Number", destination: "Beneficiary Account Number", sourcePlaceholder: "e.g. 000123456789", destinationPlaceholder: "e.g. 000987654321" },
+    IMPS: { source: "Sender Account Number", destination: "Beneficiary Account Number", sourcePlaceholder: "e.g. 000123456789", destinationPlaceholder: "e.g. 000987654321" },
+    SWIFT: { source: "Sender Account Number", destination: "Beneficiary Account Number", sourcePlaceholder: "e.g. 000123456789", destinationPlaceholder: "e.g. 000987654321" },
+    WIRE_TRANSFER: { source: "Sender Account Number", destination: "Beneficiary Account Number", sourcePlaceholder: "e.g. 000123456789", destinationPlaceholder: "e.g. 000987654321" },
+  };
+
+  function accountLabels(channel) {
+    return ACCOUNT_LABELS[channel] || { source: "Source Account", destination: "Destination Account", sourcePlaceholder: "e.g. ACC1001", destinationPlaceholder: "e.g. ACC2002" };
   }
 
   function isTerminal(status) {
@@ -201,12 +249,7 @@
   }
 
   function renderDetails(p, history) {
-    const errorHtml = p.status === "FAILED" ? `
-      <div class="error-box">
-        <strong>${p.errorCode || "PROCESSING_ERROR"}</strong>
-        ${p.errorMessage || "Payment could not be processed."}
-      </div>` : "";
-
+    const failureHtml = renderFailureSection(p, history);
     const methodDetailsHtml = renderMethodDetails(p);
 
     const timelineHtml = history.map((h) => `
@@ -226,13 +269,13 @@
         <span class="status-badge status-${p.status}">${p.status}</span>
       </div>
 
-      ${errorHtml}
+      ${failureHtml}
 
       <div class="detail-grid">
         <div class="detail-item"><div class="label">Method</div><div class="value">${methodIcon(p.paymentMethod)} ${p.paymentMethod}</div></div>
         <div class="detail-item"><div class="label">Reference</div><div class="value">${p.reference || "—"}</div></div>
-        <div class="detail-item"><div class="label">Source Account</div><div class="value mono">${p.sourceAccount}</div></div>
-        <div class="detail-item"><div class="label">Destination Account</div><div class="value mono">${p.destinationAccount}</div></div>
+        <div class="detail-item"><div class="label">${accountLabels(p.paymentMethod).source}</div><div class="value mono">${p.sourceAccount}</div></div>
+        <div class="detail-item"><div class="label">${accountLabels(p.paymentMethod).destination}</div><div class="value mono">${p.destinationAccount}</div></div>
         ${methodDetailsHtml}
         <div class="detail-item"><div class="label">Created</div><div class="value">${formatDate(p.createdAt)}</div></div>
         <div class="detail-item"><div class="label">Last Updated</div><div class="value">${formatDate(p.updatedAt)}</div></div>
@@ -241,6 +284,105 @@
       <div class="timeline-title">Status History</div>
       <div class="timeline">${timelineHtml}</div>
     `;
+
+    if (p.status === "FAILED") {
+      const retryBtn = document.getElementById("btn-retry-payment");
+      if (retryBtn) retryBtn.addEventListener("click", () => retryPayment(p));
+      const editBtn = document.getElementById("btn-edit-payment");
+      if (editBtn) editBtn.addEventListener("click", () => editPayment(p));
+    }
+  }
+
+  // ---------------- Failure Details (Feature 1) ----------------
+  const FAILURE_META = {
+    NETWORK_ERROR: { reason: "Network Connectivity Issue", category: "TEMPORARY" },
+    PAYMENT_TIMEOUT: { reason: "Payment Gateway Timeout", category: "TEMPORARY" },
+    BANK_SERVER_UNAVAILABLE: { reason: "Bank Server Unavailable", category: "TEMPORARY" },
+    PROCESSING_ERROR: { reason: "Downstream Processing Error", category: "TEMPORARY" },
+    VALIDATION_FAILED: { reason: "Automated Validation Failed", category: "TEMPORARY" },
+    INSUFFICIENT_FUNDS: { reason: "Insufficient Account Balance", category: "INSUFFICIENT_FUNDS" },
+    INVALID_ACCOUNT: { reason: "Invalid Account Details", category: "INVALID_INPUT" },
+    INVALID_IFSC: { reason: "Invalid IFSC Code", category: "INVALID_INPUT" },
+    INVALID_CURRENCY: { reason: "Unsupported Currency", category: "INVALID_INPUT" },
+    INVALID_AMOUNT: { reason: "Invalid Payment Amount", category: "INVALID_INPUT" },
+    INVALID_PAYMENT_METHOD: { reason: "Invalid Payment Method Details", category: "INVALID_INPUT" },
+  };
+
+  function failureMeta(errorCode) {
+    return FAILURE_META[errorCode] || { reason: "Processing Error", category: "TEMPORARY" };
+  }
+
+  function renderFailureSection(p, history) {
+    if (p.status !== "FAILED") return "";
+    const meta = failureMeta(p.errorCode);
+    const failedEntry = [...history].reverse().find((h) => h.toStatus === "FAILED");
+    const failedAt = failedEntry ? failedEntry.changedAt : p.updatedAt;
+
+    let actionHtml;
+    if (meta.category === "INVALID_INPUT") {
+      actionHtml = `<button type="button" class="btn btn-primary" id="btn-edit-payment">Edit Payment</button>`;
+    } else if (meta.category === "INSUFFICIENT_FUNDS") {
+      actionHtml = `
+        <button type="button" class="btn btn-primary" id="btn-retry-payment">Retry Payment</button>
+        <div class="failure-helper">Retry after ensuring sufficient account balance.</div>`;
+    } else {
+      actionHtml = `<button type="button" class="btn btn-primary" id="btn-retry-payment">Retry Payment</button>`;
+    }
+
+    return `
+      <div class="failure-section">
+        <div class="failure-title">⚠ Failure Details</div>
+        <div class="failure-grid">
+          <div class="failure-item"><div class="label">Error Code</div><div class="value mono">${p.errorCode || "PROCESSING_ERROR"}</div></div>
+          <div class="failure-item"><div class="label">Failure Reason</div><div class="value">${meta.reason}</div></div>
+          <div class="failure-item span-2"><div class="label">Error Description</div><div class="value">${p.errorMessage || "Payment could not be processed."}</div></div>
+          <div class="failure-item"><div class="label">Failed Timestamp</div><div class="value">${formatDate(failedAt)}</div></div>
+        </div>
+        <div class="failure-actions">${actionHtml}</div>
+      </div>`;
+  }
+
+  function retryPayment(p) {
+    const btn = document.getElementById("btn-retry-payment");
+    if (btn) { btn.disabled = true; btn.textContent = "Retrying…"; }
+    setTimeout(() => {
+      toast(`Retry submitted for payment ${p.id.substring(0, 8)}… it will be reprocessed shortly.`, "success");
+      $("#details-modal").classList.remove("open");
+      state.openPaymentId = null;
+    }, 900);
+  }
+
+  function editPayment(p) {
+    $("#details-modal").classList.remove("open");
+    state.openPaymentId = null;
+    switchView("create");
+
+    const channel = p.paymentMethod;
+    const channelMeta = CHANNELS[channel];
+    if (channelMeta) {
+      selectPaymentType(channelMeta.type);
+      selectChannel(channel);
+      if (channelMeta.type === "INTERNATIONAL") $("#f-currency").value = p.currency;
+    }
+    $("#f-amount").value = p.amount;
+    $("#f-source").value = p.sourceAccount || "";
+    $("#f-destination").value = p.destinationAccount || "";
+    $("#f-reference").value = p.reference || "";
+
+    if (channel === "NEFT" || channel === "RTGS" || channel === "IMPS") {
+      $("#f-sender-bank").value = p.senderBankName || "";
+      $("#f-beneficiary-bank").value = p.beneficiaryBankName || "";
+      $("#f-ifsc").value = p.ifscCode || "";
+      if (channel === "IMPS") $("#f-mobile-or-account").value = p.mobileOrAccountNumber || "";
+    } else if (channel === "SWIFT" || channel === "WIRE_TRANSFER") {
+      $("#f-sender-bank").value = p.senderBankName || "";
+      $("#f-beneficiary-bank").value = p.beneficiaryBankName || "";
+      $("#f-swift-bic").value = p.swiftBicCode || "";
+      $("#f-beneficiary-country").value = p.beneficiaryCountry || "";
+      if (channel === "SWIFT") $("#f-payment-purpose").value = p.paymentPurpose || "";
+      if (channel === "WIRE_TRANSFER") $("#f-routing-number").value = p.routingNumber || "";
+    }
+    toast("Review the corrected details and resubmit the payment.", "info");
   }
 
   function renderMethodDetails(p) {
@@ -257,6 +399,22 @@
         <div class="detail-item"><div class="label">Bank</div><div class="value">${p.bankName || "—"}</div></div>
         <div class="detail-item"><div class="label">Account Type</div><div class="value">${p.bankAccountType || "—"}</div></div>`;
     }
+    if (p.paymentMethod === "NEFT" || p.paymentMethod === "RTGS" || p.paymentMethod === "IMPS") {
+      return `
+        <div class="detail-item"><div class="label">Sender Bank</div><div class="value">${p.senderBankName || "—"}</div></div>
+        <div class="detail-item"><div class="label">Beneficiary Bank</div><div class="value">${p.beneficiaryBankName || "—"}</div></div>
+        <div class="detail-item"><div class="label">IFSC Code</div><div class="value mono">${p.ifscCode || "—"}</div></div>
+        ${p.paymentMethod === "IMPS" ? `<div class="detail-item"><div class="label">Mobile / Account No.</div><div class="value mono">${p.mobileOrAccountNumber || "—"}</div></div>` : ""}`;
+    }
+    if (p.paymentMethod === "SWIFT" || p.paymentMethod === "WIRE_TRANSFER") {
+      return `
+        <div class="detail-item"><div class="label">Sender Bank</div><div class="value">${p.senderBankName || "—"}</div></div>
+        <div class="detail-item"><div class="label">Beneficiary Bank</div><div class="value">${p.beneficiaryBankName || "—"}</div></div>
+        <div class="detail-item"><div class="label">SWIFT/BIC Code</div><div class="value mono">${p.swiftBicCode || "—"}</div></div>
+        <div class="detail-item"><div class="label">Beneficiary Country</div><div class="value">${p.beneficiaryCountry || "—"}</div></div>
+        ${p.paymentMethod === "SWIFT" ? `<div class="detail-item"><div class="label">Payment Purpose</div><div class="value">${p.paymentPurpose || "—"}</div></div>` : ""}
+        ${p.paymentMethod === "WIRE_TRANSFER" && p.routingNumber ? `<div class="detail-item"><div class="label">Routing Number</div><div class="value mono">${p.routingNumber}</div></div>` : ""}`;
+    }
     return "";
   }
 
@@ -272,28 +430,76 @@
   });
 
   // ---------------- Create Payment ----------------
-  $all(".method-tab").forEach((tab) => tab.addEventListener("click", () => {
-    $all(".method-tab").forEach((t) => t.classList.remove("active"));
-    tab.classList.add("active");
-    state.method = tab.dataset.method;
-    $all(".method-fields").forEach((f) => {
-      f.classList.toggle("hidden", f.dataset.for !== state.method);
+  function populateSelect(selectEl, values) {
+    if (!selectEl) return;
+    const current = selectEl.value;
+    selectEl.innerHTML = values.map((v) => `<option value="${v}">${v}</option>`).join("");
+    if (values.includes(current)) selectEl.value = current;
+  }
+
+  function updateCurrencyOptions(paymentType) {
+    const codes = paymentType === "DOMESTIC" ? ["INR"] : ["USD", "GBP", "EUR", "INR"];
+    $("#f-currency").innerHTML = codes.map((c) => `<option value="${c}">${CURRENCIES[c]}</option>`).join("");
+    $("#f-currency").value = codes[0];
+    $("#currency-prefix").textContent = CURRENCY_SYMBOLS[codes[0]] || codes[0];
+  }
+
+  function selectPaymentType(type) {
+    state.paymentType = type;
+    state.channel = null;
+    $all(".type-card").forEach((c) => c.classList.toggle("active", c.dataset.type === type));
+    $("#channel-section").classList.remove("hidden");
+    $("#channel-cards-domestic").classList.toggle("hidden", type !== "DOMESTIC");
+    $("#channel-cards-international").classList.toggle("hidden", type !== "INTERNATIONAL");
+    $all(".channel-card").forEach((c) => c.classList.remove("active"));
+    $("#payment-form").classList.add("hidden");
+    updateCurrencyOptions(type);
+  }
+
+  function updateFormForChannel(channel) {
+    const labels = accountLabels(channel);
+    $("#label-source").textContent = labels.source;
+    $("#label-destination").textContent = labels.destination;
+    $("#f-source").placeholder = labels.sourcePlaceholder;
+    $("#f-destination").placeholder = labels.destinationPlaceholder;
+
+    $all(".channel-fields").forEach((f) => {
+      const applicable = f.dataset.for.split(",").includes(channel);
+      f.classList.toggle("hidden", !applicable);
     });
-  }));
+
+    const bankList = CHANNELS[channel].type === "INTERNATIONAL" ? INTERNATIONAL_BANKS : DOMESTIC_BANKS;
+    populateSelect($("#f-sender-bank"), bankList);
+    populateSelect($("#f-beneficiary-bank"), bankList);
+    populateSelect($("#f-beneficiary-country"), BENEFICIARY_COUNTRIES);
+    populateSelect($("#f-payment-purpose"), PAYMENT_PURPOSES);
+  }
+
+  function selectChannel(channel) {
+    state.channel = channel;
+    $all(".channel-card").forEach((c) => c.classList.toggle("active", c.dataset.channel === channel));
+    $("#payment-form").classList.remove("hidden");
+    updateFormForChannel(channel);
+  }
+
+  $all(".type-card").forEach((card) => card.addEventListener("click", () => selectPaymentType(card.dataset.type)));
+  $all(".channel-card").forEach((card) => card.addEventListener("click", () => selectChannel(card.dataset.channel)));
 
   $("#f-currency").addEventListener("change", (e) => {
-    const symbols = { INR: "₹", USD: "$", EUR: "€", GBP: "£", AED: "د.إ", SGD: "S$" };
-    $("#currency-prefix").textContent = symbols[e.target.value] || e.target.value;
-  });
-
-  $("#f-card-number").addEventListener("input", (e) => {
-    e.target.value = e.target.value.replace(/[^\d]/g, "").slice(0, 19)
-      .replace(/(\d{4})(?=\d)/g, "$1 ");
+    $("#currency-prefix").textContent = CURRENCY_SYMBOLS[e.target.value] || e.target.value;
   });
 
   function resetForm() {
     $("#payment-form").reset();
     $all(".error-text").forEach((e) => (e.textContent = ""));
+    state.paymentType = null;
+    state.channel = null;
+    $all(".type-card").forEach((c) => c.classList.remove("active"));
+    $all(".channel-card").forEach((c) => c.classList.remove("active"));
+    $("#channel-section").classList.add("hidden");
+    $("#channel-cards-domestic").classList.add("hidden");
+    $("#channel-cards-international").classList.add("hidden");
+    $("#payment-form").classList.add("hidden");
     $("#currency-prefix").textContent = "₹";
   }
 
@@ -307,29 +513,34 @@
   }
 
   function buildPayload() {
+    const channel = state.channel;
     const payload = {
       amount: parseFloat($("#f-amount").value),
       currency: $("#f-currency").value,
       sourceAccount: $("#f-source").value.trim(),
       destinationAccount: $("#f-destination").value.trim(),
-      paymentMethod: state.method,
+      paymentMethod: channel,
       reference: $("#f-reference").value.trim() || null,
       idempotencyKey: crypto.randomUUID ? crypto.randomUUID() : `key-${Date.now()}-${Math.random()}`,
     };
 
-    if (state.method === "UPI") {
-      payload.upiDetails = { upiId: $("#f-upi-id").value.trim() };
-    } else if (state.method === "CARD") {
-      payload.cardDetails = {
-        cardNumber: $("#f-card-number").value.replace(/\s/g, ""),
-        cardHolderName: $("#f-card-name").value.trim(),
-        cardExpiry: $("#f-card-expiry").value.trim(),
-        cvv: $("#f-card-cvv").value.trim(),
+    if (channel === "UPI") {
+      payload.upiDetails = { upiId: payload.sourceAccount };
+    } else if (channel === "NEFT" || channel === "RTGS" || channel === "IMPS") {
+      payload.bankTransferDetails = {
+        senderBank: $("#f-sender-bank").value,
+        beneficiaryBank: $("#f-beneficiary-bank").value,
+        ifscCode: $("#f-ifsc").value.trim().toUpperCase(),
+        mobileOrAccountNumber: channel === "IMPS" ? $("#f-mobile-or-account").value.trim() : null,
       };
-    } else if (state.method === "NETBANKING") {
-      payload.netBankingDetails = {
-        bankName: $("#f-bank-name").value,
-        bankAccountType: $("#f-bank-account-type").value,
+    } else if (channel === "SWIFT" || channel === "WIRE_TRANSFER") {
+      payload.internationalTransferDetails = {
+        senderBank: $("#f-sender-bank").value,
+        beneficiaryBank: $("#f-beneficiary-bank").value,
+        swiftBicCode: $("#f-swift-bic").value.trim().toUpperCase(),
+        beneficiaryCountry: $("#f-beneficiary-country").value,
+        paymentPurpose: channel === "SWIFT" ? $("#f-payment-purpose").value : null,
+        routingNumber: channel === "WIRE_TRANSFER" ? ($("#f-routing-number").value.trim() || null) : null,
       };
     }
     return payload;
@@ -338,29 +549,83 @@
   function validateClientSide(payload) {
     clearErrors();
     let ok = true;
+    const channel = state.channel;
+    const labels = accountLabels(channel);
     if (!payload.amount || payload.amount <= 0) { setError("err-amount", "Enter a valid amount greater than 0"); ok = false; }
-    if (!payload.sourceAccount) { setError("err-source", "Source account is required"); ok = false; }
-    if (!payload.destinationAccount) { setError("err-destination", "Destination account is required"); ok = false; }
+    if (!payload.sourceAccount) { setError("err-source", `${labels.source} is required`); ok = false; }
+    if (!payload.destinationAccount) { setError("err-destination", `${labels.destination} is required`); ok = false; }
     if (payload.sourceAccount && payload.destinationAccount &&
         payload.sourceAccount.toLowerCase() === payload.destinationAccount.toLowerCase()) {
-      setError("err-destination", "Must differ from source account"); ok = false;
+      setError("err-destination", `Must differ from ${labels.source.toLowerCase()}`); ok = false;
     }
-    if (state.method === "UPI" && (!payload.upiDetails || !payload.upiDetails.upiId)) {
-      setError("err-upi", "Enter a valid UPI ID"); ok = false;
+    if (channel === "UPI" && !/^[\w.+-]{2,256}@[A-Za-z]{2,64}$/.test(payload.sourceAccount || "")) {
+      setError("err-source", "Enter a valid UPI ID e.g. name@bank"); ok = false;
     }
-    if (state.method === "CARD" && (!payload.cardDetails || !payload.cardDetails.cardNumber || payload.cardDetails.cardNumber.length < 12)) {
-      setError("err-card-number", "Enter a valid card number"); ok = false;
+    if ((channel === "NEFT" || channel === "RTGS" || channel === "IMPS") &&
+        (!payload.bankTransferDetails.ifscCode || !/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(payload.bankTransferDetails.ifscCode))) {
+      setError("err-ifsc", "Enter a valid IFSC code e.g. HDFC0001234"); ok = false;
+    }
+    if (channel === "IMPS" && !payload.bankTransferDetails.mobileOrAccountNumber) {
+      setError("err-mobile-or-account", "Enter a mobile number or account number"); ok = false;
+    }
+    if ((channel === "SWIFT" || channel === "WIRE_TRANSFER") && !payload.internationalTransferDetails.swiftBicCode) {
+      setError("err-swift-bic", "Enter a valid SWIFT/BIC code"); ok = false;
     }
     return ok;
   }
 
-  $("#payment-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    if (state.submitting) return;
+  // ---------------- Duplicate Payment Detection (Feature 2) ----------------
+  let pendingDuplicatePayload = null;
 
-    const payload = buildPayload();
-    if (!validateClientSide(payload)) return;
+  async function findPotentialDuplicate(payload) {
+    try {
+      const recent = await PaymentsApi.listPayments({ page: 0, size: 20, sortBy: "createdAt", direction: "DESC" });
+      const cutoff = Date.now() - 2 * 60 * 1000;
+      return (recent.content || []).find((p) => {
+        const createdAt = new Date(p.createdAt).getTime();
+        if (createdAt < cutoff) return false;
+        return p.sourceAccount === payload.sourceAccount &&
+          p.destinationAccount === payload.destinationAccount &&
+          Number(p.amount) === Number(payload.amount) &&
+          p.currency === payload.currency &&
+          (p.reference || "") === (payload.reference || "");
+      }) || null;
+    } catch (e) {
+      return null; // fail open — never block a real submission because the duplicate check itself failed
+    }
+  }
 
+  function showDuplicateDialog(duplicate, payload) {
+    pendingDuplicatePayload = payload;
+    $("#duplicate-card").innerHTML = `
+      <div class="detail-item"><div class="label">Payment ID</div><div class="value mono">${duplicate.id}</div></div>
+      <div class="detail-item"><div class="label">Reference</div><div class="value">${duplicate.reference || "—"}</div></div>
+      <div class="detail-item"><div class="label">Amount</div><div class="value">${formatMoney(duplicate.amount, duplicate.currency)}</div></div>
+      <div class="detail-item"><div class="label">Source Account</div><div class="value mono">${duplicate.sourceAccount}</div></div>
+      <div class="detail-item"><div class="label">Destination Account</div><div class="value mono">${duplicate.destinationAccount}</div></div>
+      <div class="detail-item"><div class="label">Created Time</div><div class="value">${formatDate(duplicate.createdAt)}</div></div>
+      <div class="detail-item"><div class="label">Status</div><div class="value"><span class="status-badge status-${duplicate.status}">${duplicate.status}</span></div></div>
+    `;
+    $("#duplicate-modal").classList.add("open");
+  }
+
+  function closeDuplicateDialog() {
+    $("#duplicate-modal").classList.remove("open");
+    pendingDuplicatePayload = null;
+  }
+
+  $("#close-duplicate").addEventListener("click", closeDuplicateDialog);
+  $("#btn-cancel-duplicate").addEventListener("click", closeDuplicateDialog);
+  $("#duplicate-modal").addEventListener("click", (e) => {
+    if (e.target.id === "duplicate-modal") closeDuplicateDialog();
+  });
+  $("#btn-create-anyway").addEventListener("click", async () => {
+    const payload = pendingDuplicatePayload;
+    closeDuplicateDialog();
+    if (payload) await submitPayment(payload);
+  });
+
+  async function submitPayment(payload) {
     state.submitting = true;
     const submitBtn = $("#btn-submit-payment");
     submitBtn.disabled = true;
@@ -378,9 +643,13 @@
       if (details) {
         details.forEach((d) => {
           const [field] = d.split(":");
-          if (field && field.toLowerCase().includes("amount")) setError("err-amount", d);
-          if (field && field.toLowerCase().includes("source")) setError("err-source", d);
-          if (field && field.toLowerCase().includes("destination")) setError("err-destination", d);
+          const f = (field || "").toLowerCase();
+          if (f.includes("amount")) setError("err-amount", d);
+          if (f.includes("source")) setError("err-source", d);
+          if (f.includes("destination")) setError("err-destination", d);
+          if (f.includes("ifsc")) setError("err-ifsc", d);
+          if (f.includes("mobileoraccountnumber")) setError("err-mobile-or-account", d);
+          if (f.includes("swiftbiccode")) setError("err-swift-bic", d);
         });
       }
     } finally {
@@ -388,6 +657,22 @@
       submitBtn.disabled = false;
       $("#submit-label").textContent = "Pay Now";
     }
+  }
+
+  $("#payment-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (state.submitting || !state.channel) return;
+
+    const payload = buildPayload();
+    if (!validateClientSide(payload)) return;
+
+    const duplicate = await findPotentialDuplicate(payload);
+    if (duplicate) {
+      showDuplicateDialog(duplicate, payload);
+      return;
+    }
+
+    await submitPayment(payload);
   });
 
   // ---------------- Polling for live status updates ----------------

@@ -87,6 +87,39 @@ public class PaymentValidationService {
                             "netBankingDetails (bankName, bankAccountType) is required for net banking payments");
                 }
             }
+            case NEFT, RTGS -> {
+                var details = request.getBankTransferDetails();
+                if (details == null || isBlank(details.getSenderBank()) || isBlank(details.getBeneficiaryBank())
+                        || isBlank(details.getIfscCode())) {
+                    throw new PaymentValidationException(ErrorCode.INVALID_PAYMENT_METHOD,
+                            "bankTransferDetails (senderBank, beneficiaryBank, ifscCode) is required for " + request.getPaymentMethod() + " payments");
+                }
+            }
+            case IMPS -> {
+                var details = request.getBankTransferDetails();
+                if (details == null || isBlank(details.getSenderBank()) || isBlank(details.getBeneficiaryBank())
+                        || isBlank(details.getIfscCode()) || isBlank(details.getMobileOrAccountNumber())) {
+                    throw new PaymentValidationException(ErrorCode.INVALID_PAYMENT_METHOD,
+                            "bankTransferDetails (senderBank, beneficiaryBank, ifscCode, mobileOrAccountNumber) is required for IMPS payments");
+                }
+            }
+            case SWIFT -> {
+                var details = request.getInternationalTransferDetails();
+                if (details == null || isBlank(details.getSenderBank()) || isBlank(details.getBeneficiaryBank())
+                        || isBlank(details.getSwiftBicCode()) || isBlank(details.getBeneficiaryCountry())
+                        || isBlank(details.getPaymentPurpose())) {
+                    throw new PaymentValidationException(ErrorCode.INVALID_PAYMENT_METHOD,
+                            "internationalTransferDetails (senderBank, beneficiaryBank, swiftBicCode, beneficiaryCountry, paymentPurpose) is required for SWIFT payments");
+                }
+            }
+            case WIRE_TRANSFER -> {
+                var details = request.getInternationalTransferDetails();
+                if (details == null || isBlank(details.getSenderBank()) || isBlank(details.getBeneficiaryBank())
+                        || isBlank(details.getSwiftBicCode()) || isBlank(details.getBeneficiaryCountry())) {
+                    throw new PaymentValidationException(ErrorCode.INVALID_PAYMENT_METHOD,
+                            "internationalTransferDetails (senderBank, beneficiaryBank, swiftBicCode, beneficiaryCountry) is required for Wire Transfer payments");
+                }
+            }
             default -> throw new PaymentValidationException(ErrorCode.INVALID_PAYMENT_METHOD, "Unsupported payment method");
         }
     }

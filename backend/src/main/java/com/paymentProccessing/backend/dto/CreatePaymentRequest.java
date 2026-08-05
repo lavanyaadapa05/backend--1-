@@ -55,6 +55,12 @@ public class CreatePaymentRequest {
     @Valid
     private NetBankingDetails netBankingDetails;
 
+    @Valid
+    private BankTransferDetails bankTransferDetails;
+
+    @Valid
+    private InternationalTransferDetails internationalTransferDetails;
+
     @Getter
     @Setter
     @NoArgsConstructor
@@ -97,6 +103,52 @@ public class CreatePaymentRequest {
         @NotBlank(message = "bankAccountType is required for net banking payments")
         @Pattern(regexp = "^(SAVINGS|CURRENT)$", message = "bankAccountType must be SAVINGS or CURRENT")
         private String bankAccountType;
+    }
+
+    /** Used for NEFT / RTGS / IMPS domestic bank transfers. */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BankTransferDetails {
+        @NotBlank(message = "senderBank is required")
+        private String senderBank;
+
+        @NotBlank(message = "beneficiaryBank is required")
+        private String beneficiaryBank;
+
+        @NotBlank(message = "ifscCode is required")
+        @Pattern(regexp = "^[A-Za-z]{4}0[A-Za-z0-9]{6}$", message = "ifscCode must be a valid IFSC code e.g. HDFC0001234")
+        private String ifscCode;
+
+        /** Only required for IMPS - the beneficiary's mobile number or account number. */
+        private String mobileOrAccountNumber;
+    }
+
+    /** Used for SWIFT / Wire international transfers. */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class InternationalTransferDetails {
+        @NotBlank(message = "senderBank is required")
+        private String senderBank;
+
+        @NotBlank(message = "beneficiaryBank is required")
+        private String beneficiaryBank;
+
+        @NotBlank(message = "swiftBicCode is required")
+        @Pattern(regexp = "^[A-Za-z0-9]{8,11}$", message = "swiftBicCode must be a valid SWIFT/BIC code")
+        private String swiftBicCode;
+
+        @NotBlank(message = "beneficiaryCountry is required")
+        private String beneficiaryCountry;
+
+        /** Required for SWIFT transfers, optional for Wire transfers. */
+        private String paymentPurpose;
+
+        /** Only applicable for Wire transfers. */
+        private String routingNumber;
     }
 }
 

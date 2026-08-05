@@ -6,6 +6,11 @@ package com.paymentProccessing.backend.enums;
 public enum PaymentMethod {
     UPI,
     CARD,
-    NETBANKING
+    NETBANKING,
+    NEFT,
+    RTGS,
+    IMPS,
+    SWIFT,
+    WIRE_TRANSFER
 }
 

@@ -90,6 +90,32 @@ public class Payment {
     @Column(length = 20)
     private String bankAccountType;
 
+    // ---------- NEFT / RTGS / IMPS specific ----------
+    @Column(length = 100)
+    private String senderBankName;
+
+    @Column(length = 100)
+    private String beneficiaryBankName;
+
+    @Column(length = 20)
+    private String ifscCode;
+
+    @Column(length = 50)
+    private String mobileOrAccountNumber;
+
+    // ---------- SWIFT / Wire Transfer specific ----------
+    @Column(length = 20)
+    private String swiftBicCode;
+
+    @Column(length = 100)
+    private String beneficiaryCountry;
+
+    @Column(length = 100)
+    private String paymentPurpose;
+
+    @Column(length = 30)
+    private String routingNumber;
+
     // ---------- Failure details ----------
     @Enumerated(EnumType.STRING)
     @Column(length = 40)

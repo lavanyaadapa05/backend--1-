@@ -38,6 +38,16 @@ public class PaymentResponse {
     private String bankName;
     private String bankAccountType;
 
+    private String senderBankName;
+    private String beneficiaryBankName;
+    private String ifscCode;
+    private String mobileOrAccountNumber;
+
+    private String swiftBicCode;
+    private String beneficiaryCountry;
+    private String paymentPurpose;
+    private String routingNumber;
+
     private ErrorCode errorCode;
     private String errorMessage;
 
@@ -62,6 +72,14 @@ public class PaymentResponse {
                 .cardNetwork(p.getCardNetwork())
                 .bankName(p.getBankName())
                 .bankAccountType(p.getBankAccountType())
+                .senderBankName(p.getSenderBankName())
+                .beneficiaryBankName(p.getBeneficiaryBankName())
+                .ifscCode(p.getIfscCode())
+                .mobileOrAccountNumber(p.getMobileOrAccountNumber())
+                .swiftBicCode(p.getSwiftBicCode())
+                .beneficiaryCountry(p.getBeneficiaryCountry())
+                .paymentPurpose(p.getPaymentPurpose())
+                .routingNumber(p.getRoutingNumber())
                 .errorCode(p.getErrorCode())
                 .errorMessage(p.getErrorMessage())
                 .createdAt(p.getCreatedAt())

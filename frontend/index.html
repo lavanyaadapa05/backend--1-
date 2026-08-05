@@ -96,24 +96,55 @@
         <header class="view-header">
           <div>
             <h1>New Payment</h1>
-            <p class="subtitle">Send money via UPI, Card or Net Banking</p>
+            <p class="subtitle">Initiate a domestic or international payment</p>
           </div>
         </header>
 
         <div class="create-card">
-          <div class="method-tabs" id="method-tabs">
-            <button class="method-tab active" data-method="UPI">
-              <span class="method-icon">📱</span> UPI
+          <p class="section-label">1. Select Payment Type</p>
+          <div class="payment-type-cards" id="payment-type-cards">
+            <button type="button" class="type-card" data-type="DOMESTIC">
+              <span class="type-check">✓</span>
+              <span class="type-icon">🏠</span>
+              <span class="type-title">Domestic Payment</span>
+              <span class="type-desc">Send money within India via UPI, NEFT, RTGS or IMPS</span>
             </button>
-            <button class="method-tab" data-method="CARD">
-              <span class="method-icon">💳</span> Card
-            </button>
-            <button class="method-tab" data-method="NETBANKING">
-              <span class="method-icon">🏦</span> Net Banking
+            <button type="button" class="type-card" data-type="INTERNATIONAL">
+              <span class="type-check">✓</span>
+              <span class="type-icon">🌍</span>
+              <span class="type-title">International Payment</span>
+              <span class="type-desc">Send money abroad via SWIFT or Wire Transfer</span>
             </button>
           </div>
 
-          <form id="payment-form" novalidate>
+          <div class="channel-section hidden" id="channel-section">
+            <p class="section-label">2. Select Payment Channel</p>
+            <div class="channel-cards hidden" id="channel-cards-domestic" data-group="DOMESTIC">
+              <button type="button" class="channel-card" data-channel="UPI">
+                <span class="channel-icon">📱</span> UPI
+              </button>
+              <button type="button" class="channel-card" data-channel="NEFT">
+                <span class="channel-icon">🏦</span> NEFT
+              </button>
+              <button type="button" class="channel-card" data-channel="RTGS">
+                <span class="channel-icon">🏛️</span> RTGS
+              </button>
+              <button type="button" class="channel-card" data-channel="IMPS">
+                <span class="channel-icon">⚡</span> IMPS
+              </button>
+            </div>
+            <div class="channel-cards hidden" id="channel-cards-international" data-group="INTERNATIONAL">
+              <button type="button" class="channel-card" data-channel="SWIFT">
+                <span class="channel-icon">🌐</span> SWIFT Transfer
+              </button>
+              <button type="button" class="channel-card" data-channel="WIRE_TRANSFER">
+                <span class="channel-icon">💸</span> Wire Transfer
+              </button>
+            </div>
+          </div>
+
+          <form id="payment-form" class="hidden" novalidate>
+            <p class="section-label">3. Payment Details</p>
             <div class="form-grid">
               <div class="form-group">
                 <label>Amount</label>
@@ -125,70 +156,66 @@
               </div>
               <div class="form-group">
                 <label>Currency</label>
-                <select id="f-currency">
-                  <option value="INR">INR — Indian Rupee</option>
-                  <option value="USD">USD — US Dollar</option>
-                  <option value="EUR">EUR — Euro</option>
-                  <option value="GBP">GBP — British Pound</option>
-                  <option value="AED">AED — UAE Dirham</option>
-                  <option value="SGD">SGD — Singapore Dollar</option>
-                </select>
+                <select id="f-currency"></select>
               </div>
               <div class="form-group">
-                <label>Source Account</label>
+                <label id="label-source">Source Account</label>
                 <input type="text" id="f-source" placeholder="e.g. ACC1001" required />
                 <small class="error-text" id="err-source"></small>
               </div>
               <div class="form-group">
-                <label>Destination Account</label>
+                <label id="label-destination">Destination Account</label>
                 <input type="text" id="f-destination" placeholder="e.g. ACC2002" required />
                 <small class="error-text" id="err-destination"></small>
               </div>
 
-              <!-- UPI fields -->
-              <div class="form-group method-fields" data-for="UPI">
-                <label>UPI ID (VPA)</label>
-                <input type="text" id="f-upi-id" placeholder="name@bank" />
-                <small class="error-text" id="err-upi"></small>
+              <!-- Sender / Beneficiary bank (NEFT, RTGS, IMPS, SWIFT, WIRE_TRANSFER) -->
+              <div class="form-group channel-fields hidden" data-for="NEFT,RTGS,IMPS,SWIFT,WIRE_TRANSFER">
+                <label>Sender Bank</label>
+                <select id="f-sender-bank"></select>
+              </div>
+              <div class="form-group channel-fields hidden" data-for="NEFT,RTGS,IMPS,SWIFT,WIRE_TRANSFER">
+                <label>Beneficiary Bank</label>
+                <select id="f-beneficiary-bank"></select>
               </div>
 
-              <!-- Card fields -->
-              <div class="form-group method-fields hidden" data-for="CARD">
-                <label>Card Number</label>
-                <input type="text" id="f-card-number" placeholder="1234 5678 9012 3456" maxlength="19" />
-                <small class="error-text" id="err-card-number"></small>
-              </div>
-              <div class="form-group method-fields hidden" data-for="CARD">
-                <label>Cardholder Name</label>
-                <input type="text" id="f-card-name" placeholder="John Doe" />
-              </div>
-              <div class="form-group method-fields hidden" data-for="CARD">
-                <label>Expiry (MM/YYYY)</label>
-                <input type="text" id="f-card-expiry" placeholder="12/2028" maxlength="7" />
-              </div>
-              <div class="form-group method-fields hidden" data-for="CARD">
-                <label>CVV</label>
-                <input type="password" id="f-card-cvv" placeholder="123" maxlength="4" />
+              <!-- IFSC (NEFT, RTGS, IMPS) -->
+              <div class="form-group channel-fields hidden" data-for="NEFT,RTGS,IMPS">
+                <label>IFSC Code</label>
+                <input type="text" id="f-ifsc" placeholder="e.g. HDFC0001234" maxlength="11" />
+                <small class="error-text" id="err-ifsc"></small>
               </div>
 
-              <!-- NetBanking fields -->
-              <div class="form-group method-fields hidden" data-for="NETBANKING">
-                <label>Bank Name</label>
-                <select id="f-bank-name">
-                  <option value="State Bank of India">State Bank of India</option>
-                  <option value="HDFC Bank">HDFC Bank</option>
-                  <option value="ICICI Bank">ICICI Bank</option>
-                  <option value="Axis Bank">Axis Bank</option>
-                  <option value="Kotak Mahindra Bank">Kotak Mahindra Bank</option>
-                  <option value="Citibank">Citibank</option>
-                </select>
+              <!-- Mobile / account (IMPS only) -->
+              <div class="form-group channel-fields hidden" data-for="IMPS">
+                <label>Mobile Number or Account Number</label>
+                <input type="text" id="f-mobile-or-account" placeholder="e.g. 9876543210" />
+                <small class="error-text" id="err-mobile-or-account"></small>
               </div>
-              <div class="form-group method-fields hidden" data-for="NETBANKING">
-                <label>Account Type</label>
-                <select id="f-bank-account-type">
-                  <option value="SAVINGS">Savings</option>
-                  <option value="CURRENT">Current</option>
-                </select>
+
+              <!-- SWIFT/BIC (SWIFT, WIRE_TRANSFER) -->
+              <div class="form-group channel-fields hidden" data-for="SWIFT,WIRE_TRANSFER">
+                <label>SWIFT/BIC Code</label>
+                <input type="text" id="f-swift-bic" placeholder="e.g. HSBCGB2LXXX" maxlength="11" />
+                <small class="error-text" id="err-swift-bic"></small>
+              </div>
+
+              <!-- Beneficiary country (SWIFT, WIRE_TRANSFER) -->
+              <div class="form-group channel-fields hidden" data-for="SWIFT,WIRE_TRANSFER">
+                <label>Beneficiary Country</label>
+                <select id="f-beneficiary-country"></select>
+              </div>
+
+              <!-- Payment purpose (SWIFT only) -->
+              <div class="form-group channel-fields hidden" data-for="SWIFT">
+                <label>Payment Purpose</label>
+                <select id="f-payment-purpose"></select>
+              </div>
+
+              <!-- Routing number (Wire Transfer only, optional) -->
+              <div class="form-group channel-fields hidden" data-for="WIRE_TRANSFER">
+                <label>Routing Number <span class="optional">(if applicable)</span></label>
+                <input type="text" id="f-routing-number" placeholder="e.g. 026009593" />
               </div>
 
               <div class="form-group span-2">
@@ -211,9 +238,25 @@
 
   <!-- Payment Details Modal -->
   <div class="modal-overlay" id="details-modal">
+
     <div class="modal">
       <button class="modal-close" id="close-details">×</button>
       <div id="details-content">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Duplicate Payment Confirmation Modal -->
+  <div class="modal-overlay" id="duplicate-modal">
+    <div class="modal modal-warning">
+      <button class="modal-close" id="close-duplicate">×</button>
+      <div class="duplicate-icon">⚠️</div>
+      <h2 class="duplicate-title">Potential Duplicate Payment</h2>
+      <p class="duplicate-message">A payment with similar details was recently submitted. Please verify whether you intend to create another payment.</p>
+      <div class="detail-grid" id="duplicate-card"></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" id="btn-cancel-duplicate">Cancel</button>
+        <button type="button" class="btn btn-primary" id="btn-create-anyway">Create Anyway</button>
+      </div>
     </div>
   </div>
 
