@@ -51,5 +51,23 @@ public class PaymentStatusHistory {
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant changedAt;
+
+    /**
+     * Human-readable description of the transition, derived from the target status.
+     * Not persisted; computed on demand for display/analytics purposes.
+     */
+    @Transient
+    public String getAction() {
+        if (toStatus == null) {
+            return "Status Changed";
+        }
+        return switch (toStatus) {
+            case CREATED -> "Payment Created";
+            case VALIDATED -> "Validated";
+            case SENT -> "Sent";
+            case COMPLETED -> "Completed";
+            case FAILED -> "Payment Failed";
+        };
+    }
 }
 

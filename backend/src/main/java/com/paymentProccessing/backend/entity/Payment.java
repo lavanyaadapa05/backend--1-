@@ -2,6 +2,7 @@ package com.paymentProccessing.backend.entity;
 
 import com.paymentProccessing.backend.enums.PaymentMethod;
 import com.paymentProccessing.backend.enums.PaymentStatus;
+import com.paymentProccessing.backend.enums.PaymentType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -58,6 +59,11 @@ public class Payment {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private PaymentMethod paymentMethod;
+
+    /** Whether this payment is a domestic (India) or international (cross-border) transfer. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private PaymentType paymentType;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -146,6 +152,10 @@ public class Payment {
         }
         if (this.status == null) {
             this.status = PaymentStatus.CREATED;
+        }
+        if (this.paymentType == null && this.paymentMethod != null) {
+            this.paymentType = (this.paymentMethod == PaymentMethod.SWIFT || this.paymentMethod == PaymentMethod.WIRE_TRANSFER)
+                    ? PaymentType.INTERNATIONAL : PaymentType.DOMESTIC;
         }
     }
 

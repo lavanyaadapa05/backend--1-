@@ -23,6 +23,8 @@ public class StatusHistoryResponse {
     private String triggeredBy;
     private String notes;
     private Instant changedAt;
+    /** Human-readable audit trail action label, e.g. "Payment Created", "Validated", "Retry Requested". */
+    private String action;
 
     public static StatusHistoryResponse from(PaymentStatusHistory h) {
         return StatusHistoryResponse.builder()
@@ -32,6 +34,7 @@ public class StatusHistoryResponse {
                 .triggeredBy(h.getTriggeredBy())
                 .notes(h.getNotes())
                 .changedAt(h.getChangedAt())
+                .action(h.getAction())
                 .build();
     }
 }

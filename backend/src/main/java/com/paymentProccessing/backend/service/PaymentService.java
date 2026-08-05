@@ -54,6 +54,7 @@ public class PaymentService {
                 .sourceAccount(request.getSourceAccount())
                 .destinationAccount(request.getDestinationAccount())
                 .paymentMethod(request.getPaymentMethod())
+                .paymentType(request.getPaymentType())
                 .status(PaymentStatus.CREATED)
                 .reference(request.getReference())
                 .build();

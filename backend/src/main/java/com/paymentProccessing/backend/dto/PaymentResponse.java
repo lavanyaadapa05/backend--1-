@@ -4,6 +4,7 @@ import com.paymentProccessing.backend.entity.Payment;
 import com.paymentProccessing.backend.enums.ErrorCode;
 import com.paymentProccessing.backend.enums.PaymentMethod;
 import com.paymentProccessing.backend.enums.PaymentStatus;
+import com.paymentProccessing.backend.enums.PaymentType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -27,6 +28,7 @@ public class PaymentResponse {
     private String sourceAccount;
     private String destinationAccount;
     private PaymentMethod paymentMethod;
+    private PaymentType paymentType;
     private PaymentStatus status;
     private String reference;
 
@@ -63,6 +65,7 @@ public class PaymentResponse {
                 .sourceAccount(p.getSourceAccount())
                 .destinationAccount(p.getDestinationAccount())
                 .paymentMethod(p.getPaymentMethod())
+                .paymentType(p.getPaymentType())
                 .status(p.getStatus())
                 .reference(p.getReference())
                 .upiId(p.getUpiId())

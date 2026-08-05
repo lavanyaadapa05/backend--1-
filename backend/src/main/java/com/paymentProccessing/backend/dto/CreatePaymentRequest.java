@@ -1,6 +1,7 @@
 package com.paymentProccessing.backend.dto;
 
 import com.paymentProccessing.backend.enums.PaymentMethod;
+import com.paymentProccessing.backend.enums.PaymentType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
@@ -35,13 +36,18 @@ public class CreatePaymentRequest {
     private String currency;
 
     @NotBlank(message = "sourceAccount is required")
+    @Size(max = 40, message = "sourceAccount must be at most 40 characters")
     private String sourceAccount;
 
     @NotBlank(message = "destinationAccount is required")
+    @Size(max = 40, message = "destinationAccount must be at most 40 characters")
     private String destinationAccount;
 
     @NotNull(message = "paymentMethod is required")
     private PaymentMethod paymentMethod;
+
+    @NotNull(message = "paymentType is required (DOMESTIC or INTERNATIONAL)")
+    private PaymentType paymentType;
 
     @Size(max = 255)
     private String reference;
@@ -118,10 +124,12 @@ public class CreatePaymentRequest {
         private String beneficiaryBank;
 
         @NotBlank(message = "ifscCode is required")
-        @Pattern(regexp = "^[A-Za-z]{4}0[A-Za-z0-9]{6}$", message = "ifscCode must be a valid IFSC code e.g. HDFC0001234")
+        @Size(min = 11, max = 11, message = "ifscCode must be exactly 11 characters")
+        @Pattern(regexp = "^[A-Za-z]{4}0[A-Za-z0-9]{6}$", message = "ifscCode must be a valid IFSC code e.g. HDFC0001234 (4 letters + 0 + 6 alphanumeric)")
         private String ifscCode;
 
         /** Only required for IMPS - the beneficiary's mobile number or account number. */
+        @Pattern(regexp = "^(\\d{10}|\\d{9,18})$", message = "mobileOrAccountNumber must be a 10 digit mobile number or a 9-18 digit account number")
         private String mobileOrAccountNumber;
     }
 
@@ -138,7 +146,8 @@ public class CreatePaymentRequest {
         private String beneficiaryBank;
 
         @NotBlank(message = "swiftBicCode is required")
-        @Pattern(regexp = "^[A-Za-z0-9]{8,11}$", message = "swiftBicCode must be a valid SWIFT/BIC code")
+        @Pattern(regexp = "^[A-Za-z]{6}[A-Za-z0-9]{2}([A-Za-z0-9]{3})?$",
+                message = "swiftBicCode must be a valid 8 or 11 character SWIFT/BIC code e.g. HSBCGB2L or HSBCGB2LXXX")
         private String swiftBicCode;
 
         @NotBlank(message = "beneficiaryCountry is required")
@@ -147,7 +156,8 @@ public class CreatePaymentRequest {
         /** Required for SWIFT transfers, optional for Wire transfers. */
         private String paymentPurpose;
 
-        /** Only applicable for Wire transfers. */
+        /** Only applicable for Wire transfers (US ABA routing number format). */
+        @Pattern(regexp = "^$|^\\d{9}$", message = "routingNumber must be exactly 9 digits if provided")
         private String routingNumber;
     }
 }
