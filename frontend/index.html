@@ -164,6 +164,7 @@
                   <span id="currency-prefix">₹</span>
                   <input type="number" id="f-amount" step="0.01" min="0.01" placeholder="0.00" required />
                 </div>
+                <small class="hint-text" id="hint-amount"></small>
                 <small class="error-text" id="err-amount"></small>
               </div>
               <div class="form-group">
@@ -173,11 +174,13 @@
               <div class="form-group">
                 <label id="label-source">Source Account</label>
                 <input type="text" id="f-source" placeholder="e.g. ACC1001" required />
+                <small class="hint-text" id="hint-source"></small>
                 <small class="error-text" id="err-source"></small>
               </div>
               <div class="form-group">
                 <label id="label-destination">Destination Account</label>
                 <input type="text" id="f-destination" placeholder="e.g. ACC2002" required />
+                <small class="hint-text" id="hint-destination"></small>
                 <small class="error-text" id="err-destination"></small>
               </div>
 
@@ -195,6 +198,7 @@
               <div class="form-group channel-fields hidden" data-for="NEFT,RTGS,IMPS">
                 <label>IFSC Code</label>
                 <input type="text" id="f-ifsc" placeholder="e.g. HDFC0001234" maxlength="11" />
+                <small class="hint-text">Format: 4 letters + 0 + 6 alphanumeric characters (e.g. HDFC0001234) — exactly 11 characters</small>
                 <small class="error-text" id="err-ifsc"></small>
               </div>
 
@@ -202,6 +206,7 @@
               <div class="form-group channel-fields hidden" data-for="IMPS">
                 <label>Mobile Number or Account Number</label>
                 <input type="text" id="f-mobile-or-account" placeholder="e.g. 9876543210" />
+                <small class="hint-text">10-digit mobile number, or a 9-18 digit bank account number</small>
                 <small class="error-text" id="err-mobile-or-account"></small>
               </div>
 
@@ -209,6 +214,7 @@
               <div class="form-group channel-fields hidden" data-for="SWIFT,WIRE_TRANSFER">
                 <label>SWIFT/BIC Code</label>
                 <input type="text" id="f-swift-bic" placeholder="e.g. HSBCGB2LXXX" maxlength="11" />
+                <small class="hint-text">8 or 11 character SWIFT/BIC code (e.g. HSBCGB2L or HSBCGB2LXXX)</small>
                 <small class="error-text" id="err-swift-bic"></small>
               </div>
 
@@ -228,6 +234,8 @@
               <div class="form-group channel-fields hidden" data-for="WIRE_TRANSFER">
                 <label>Routing Number <span class="optional">(if applicable)</span></label>
                 <input type="text" id="f-routing-number" placeholder="e.g. 026009593" />
+                <small class="hint-text">Optional — must be exactly 9 digits if provided (US ABA routing number)</small>
+                <small class="error-text" id="err-routing-number"></small>
               </div>
 
               <div class="form-group span-2">
@@ -235,6 +243,7 @@
                 <input type="text" id="f-reference" placeholder="e.g. Rent payment for July" />
               </div>
             </div>
+
 
             <div class="form-actions">
               <button type="button" class="btn btn-ghost" id="btn-cancel-create">Cancel</button>

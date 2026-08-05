@@ -267,6 +267,8 @@ input, select { font-family: inherit; }
 .amount-input span { color: var(--text-muted); font-weight: 700; }
 .amount-input input { border: none; padding: 11px 8px; flex: 1; }
 .error-text { color: var(--status-failed); font-size: 12px; min-height: 14px; }
+.hint-text { color: var(--text-muted); font-size: 11.5px; line-height: 1.4; }
+
 .field-hint { color: var(--text-muted); font-size: 11.5px; }
 .form-group input.invalid, .form-group select.invalid { border-color: var(--status-failed); }
 
