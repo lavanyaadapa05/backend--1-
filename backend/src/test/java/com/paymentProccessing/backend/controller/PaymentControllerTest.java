@@ -7,6 +7,7 @@ import com.paymentProccessing.backend.dto.StatusUpdateRequest;
 import com.paymentProccessing.backend.enums.ErrorCode;
 import com.paymentProccessing.backend.enums.PaymentMethod;
 import com.paymentProccessing.backend.enums.PaymentStatus;
+import com.paymentProccessing.backend.enums.PaymentType;
 import com.paymentProccessing.backend.exception.InvalidStatusTransitionException;
 import com.paymentProccessing.backend.exception.PaymentNotFoundException;
 import com.paymentProccessing.backend.service.PaymentService;
@@ -60,6 +61,7 @@ class PaymentControllerTest {
         request.setSourceAccount("acc-1");
         request.setDestinationAccount("acc-2");
         request.setPaymentMethod(PaymentMethod.UPI);
+        request.setPaymentType(PaymentType.DOMESTIC);
         CreatePaymentRequest.UpiDetails upi = new CreatePaymentRequest.UpiDetails();
         upi.setUpiId("john@upi");
         request.setUpiDetails(upi);

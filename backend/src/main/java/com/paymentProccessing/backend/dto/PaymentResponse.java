@@ -4,6 +4,7 @@ import com.paymentProccessing.backend.entity.Payment;
 import com.paymentProccessing.backend.enums.ErrorCode;
 import com.paymentProccessing.backend.enums.PaymentMethod;
 import com.paymentProccessing.backend.enums.PaymentStatus;
+import com.paymentProccessing.backend.enums.PaymentType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -27,6 +28,7 @@ public class PaymentResponse {
     private String sourceAccount;
     private String destinationAccount;
     private PaymentMethod paymentMethod;
+    private PaymentType paymentType;
     private PaymentStatus status;
     private String reference;
 
@@ -37,6 +39,16 @@ public class PaymentResponse {
     private String cardNetwork;
     private String bankName;
     private String bankAccountType;
+
+    private String senderBankName;
+    private String beneficiaryBankName;
+    private String ifscCode;
+    private String mobileOrAccountNumber;
+
+    private String swiftBicCode;
+    private String beneficiaryCountry;
+    private String paymentPurpose;
+    private String routingNumber;
 
     private ErrorCode errorCode;
     private String errorMessage;
@@ -53,6 +65,7 @@ public class PaymentResponse {
                 .sourceAccount(p.getSourceAccount())
                 .destinationAccount(p.getDestinationAccount())
                 .paymentMethod(p.getPaymentMethod())
+                .paymentType(p.getPaymentType())
                 .status(p.getStatus())
                 .reference(p.getReference())
                 .upiId(p.getUpiId())
@@ -62,6 +75,14 @@ public class PaymentResponse {
                 .cardNetwork(p.getCardNetwork())
                 .bankName(p.getBankName())
                 .bankAccountType(p.getBankAccountType())
+                .senderBankName(p.getSenderBankName())
+                .beneficiaryBankName(p.getBeneficiaryBankName())
+                .ifscCode(p.getIfscCode())
+                .mobileOrAccountNumber(p.getMobileOrAccountNumber())
+                .swiftBicCode(p.getSwiftBicCode())
+                .beneficiaryCountry(p.getBeneficiaryCountry())
+                .paymentPurpose(p.getPaymentPurpose())
+                .routingNumber(p.getRoutingNumber())
                 .errorCode(p.getErrorCode())
                 .errorMessage(p.getErrorMessage())
                 .createdAt(p.getCreatedAt())

@@ -54,6 +54,7 @@ public class PaymentService {
                 .sourceAccount(request.getSourceAccount())
                 .destinationAccount(request.getDestinationAccount())
                 .paymentMethod(request.getPaymentMethod())
+                .paymentType(request.getPaymentType())
                 .status(PaymentStatus.CREATED)
                 .reference(request.getReference())
                 .build();
@@ -83,6 +84,25 @@ public class PaymentService {
         } else if (request.getPaymentMethod() == PaymentMethod.NETBANKING && request.getNetBankingDetails() != null) {
             payment.setBankName(request.getNetBankingDetails().getBankName());
             payment.setBankAccountType(request.getNetBankingDetails().getBankAccountType());
+        } else if ((request.getPaymentMethod() == PaymentMethod.NEFT
+                || request.getPaymentMethod() == PaymentMethod.RTGS
+                || request.getPaymentMethod() == PaymentMethod.IMPS)
+                && request.getBankTransferDetails() != null) {
+            var details = request.getBankTransferDetails();
+            payment.setSenderBankName(details.getSenderBank());
+            payment.setBeneficiaryBankName(details.getBeneficiaryBank());
+            payment.setIfscCode(details.getIfscCode());
+            payment.setMobileOrAccountNumber(details.getMobileOrAccountNumber());
+        } else if ((request.getPaymentMethod() == PaymentMethod.SWIFT
+                || request.getPaymentMethod() == PaymentMethod.WIRE_TRANSFER)
+                && request.getInternationalTransferDetails() != null) {
+            var details = request.getInternationalTransferDetails();
+            payment.setSenderBankName(details.getSenderBank());
+            payment.setBeneficiaryBankName(details.getBeneficiaryBank());
+            payment.setSwiftBicCode(details.getSwiftBicCode());
+            payment.setBeneficiaryCountry(details.getBeneficiaryCountry());
+            payment.setPaymentPurpose(details.getPaymentPurpose());
+            payment.setRoutingNumber(details.getRoutingNumber());
         }
     }
 

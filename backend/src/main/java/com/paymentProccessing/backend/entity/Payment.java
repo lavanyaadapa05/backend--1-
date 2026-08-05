@@ -2,6 +2,7 @@ package com.paymentProccessing.backend.entity;
 
 import com.paymentProccessing.backend.enums.PaymentMethod;
 import com.paymentProccessing.backend.enums.PaymentStatus;
+import com.paymentProccessing.backend.enums.PaymentType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -59,6 +60,11 @@ public class Payment {
     @Column(nullable = false, length = 20)
     private PaymentMethod paymentMethod;
 
+    /** Whether this payment is a domestic (India) or international (cross-border) transfer. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private PaymentType paymentType;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private PaymentStatus status;
@@ -90,6 +96,32 @@ public class Payment {
     @Column(length = 20)
     private String bankAccountType;
 
+    // ---------- NEFT / RTGS / IMPS specific ----------
+    @Column(length = 100)
+    private String senderBankName;
+
+    @Column(length = 100)
+    private String beneficiaryBankName;
+
+    @Column(length = 20)
+    private String ifscCode;
+
+    @Column(length = 50)
+    private String mobileOrAccountNumber;
+
+    // ---------- SWIFT / Wire Transfer specific ----------
+    @Column(length = 20)
+    private String swiftBicCode;
+
+    @Column(length = 100)
+    private String beneficiaryCountry;
+
+    @Column(length = 100)
+    private String paymentPurpose;
+
+    @Column(length = 30)
+    private String routingNumber;
+
     // ---------- Failure details ----------
     @Enumerated(EnumType.STRING)
     @Column(length = 40)
@@ -120,6 +152,10 @@ public class Payment {
         }
         if (this.status == null) {
             this.status = PaymentStatus.CREATED;
+        }
+        if (this.paymentType == null && this.paymentMethod != null) {
+            this.paymentType = (this.paymentMethod == PaymentMethod.SWIFT || this.paymentMethod == PaymentMethod.WIRE_TRANSFER)
+                    ? PaymentType.INTERNATIONAL : PaymentType.DOMESTIC;
         }
     }
 
