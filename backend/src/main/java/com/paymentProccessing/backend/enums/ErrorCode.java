@@ -17,7 +17,9 @@ public enum ErrorCode {
     INVALID_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "Cannot transition from current status to requested status"),
     PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Payment ID does not exist"),
     PROCESSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Internal error during payment processing"),
-    NETWORK_ERROR(HttpStatus.SERVICE_UNAVAILABLE, "Communication failure with payment network");
+    NETWORK_ERROR(HttpStatus.SERVICE_UNAVAILABLE, "Communication failure with payment network"),
+    FRAUD_BLOCKED(HttpStatus.OK, "Payment blocked due to high fraud risk"),
+    FRAUD_REJECTED(HttpStatus.OK, "Payment rejected by operations team after fraud review");
 
     private final HttpStatus httpStatus;
     private final String defaultMessage;

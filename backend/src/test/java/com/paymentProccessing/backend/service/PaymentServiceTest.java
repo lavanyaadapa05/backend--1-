@@ -12,6 +12,7 @@ import com.paymentProccessing.backend.exception.PaymentApiException;
 import com.paymentProccessing.backend.exception.PaymentNotFoundException;
 import com.paymentProccessing.backend.repository.PaymentRepository;
 import com.paymentProccessing.backend.repository.PaymentStatusHistoryRepository;
+import com.paymentProccessing.backend.repository.RiskAssessmentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,14 +40,21 @@ class PaymentServiceTest {
     @Mock
     private PaymentSimulationService simulationService;
 
+    @Mock
+    private RiskAssessmentRepository riskAssessmentRepository;
+
     private PaymentValidationService validationService;
+    private FraudDetectionService fraudDetectionService;
 
     private PaymentService paymentService;
 
     @BeforeEach
     void setUp() {
         validationService = new PaymentValidationService();
-        paymentService = new PaymentService(paymentRepository, historyRepository, validationService, simulationService);
+        fraudDetectionService = new FraudDetectionService(paymentRepository);
+        paymentService = new PaymentService(paymentRepository, historyRepository, validationService, simulationService,
+                fraudDetectionService, riskAssessmentRepository);
+        lenient().when(riskAssessmentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
     private CreatePaymentRequest upiRequest() {
@@ -72,7 +80,8 @@ class PaymentServiceTest {
         assertThat(response.getStatus()).isEqualTo(PaymentStatus.CREATED);
         assertThat(response.getUpiId()).isEqualTo("payer@upi");
         verify(simulationService, times(1)).scheduleProcessing(anyString());
-        verify(historyRepository, times(1)).save(any());
+        // 1 "Payment created" + 2 fraud audit entries ("Fraud validation completed", "Risk score generated")
+        verify(historyRepository, times(3)).save(any());
     }
 
     @Test

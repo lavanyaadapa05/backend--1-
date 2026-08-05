@@ -53,11 +53,23 @@ public class PaymentStatusHistory {
     private Instant changedAt;
 
     /**
+     * Optional explicit audit action label for events that aren't a plain status
+     * transition (e.g. fraud/risk events like "Risk score generated" or
+     * "Payment flagged for review"). When absent, {@link #getAction()} derives
+     * a label from {@link #toStatus}.
+     */
+    @Column(length = 100)
+    private String actionOverride;
+
+    /**
      * Human-readable description of the transition, derived from the target status.
      * Not persisted; computed on demand for display/analytics purposes.
      */
     @Transient
     public String getAction() {
+        if (actionOverride != null && !actionOverride.isBlank()) {
+            return actionOverride;
+        }
         if (toStatus == null) {
             return "Status Changed";
         }

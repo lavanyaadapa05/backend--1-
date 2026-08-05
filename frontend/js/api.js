@@ -30,9 +30,10 @@ const PaymentsApi = (() => {
     getPayment(id) {
       return request(`/payments/${id}`);
     },
-    listPayments({ status, search, page = 0, size = 8, sortBy = "createdAt", direction = "DESC" } = {}) {
+    listPayments({ status, riskLevel, search, page = 0, size = 8, sortBy = "createdAt", direction = "DESC" } = {}) {
       const params = new URLSearchParams();
       if (status) params.set("status", status);
+      if (riskLevel) params.set("riskLevel", riskLevel);
       if (search) params.set("search", search);
       params.set("page", page);
       params.set("size", size);
@@ -42,6 +43,15 @@ const PaymentsApi = (() => {
     },
     getHistory(id) {
       return request(`/payments/${id}/history`);
+    },
+    getRisk(id) {
+      return request(`/payments/${id}/risk`);
+    },
+    decideRisk(id, decision, notes) {
+      return request(`/payments/${id}/risk-decision`, { method: "PATCH", body: JSON.stringify({ decision, notes }) });
+    },
+    getAnalytics() {
+      return request("/analytics");
     },
     updateStatus(id, status, notes) {
       return request(`/payments/${id}/status`, { method: "PATCH", body: JSON.stringify({ status, notes }) });

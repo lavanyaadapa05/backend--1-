@@ -5,6 +5,7 @@
     paymentType: null,
     channel: null,
     status: "",
+    riskLevel: "",
     search: "",
     page: 0,
     size: window.APP_CONFIG.PAGE_SIZE,
@@ -56,6 +57,12 @@
     }[method] || "💰";
   }
 
+  const RISK_DOT = { LOW: "🟢", MEDIUM: "🟡", HIGH: "🔴" };
+  function riskBadge(level) {
+    if (!level) return `<span class="risk-badge">—</span>`;
+    return `<span class="risk-badge risk-${level}">${RISK_DOT[level] || ""} ${level}</span>`;
+  }
+
   // ---------------- Payment type / channel configuration ----------------
   const CHANNELS = {
     UPI: { type: "DOMESTIC", icon: "📱", label: "UPI" },
@@ -87,6 +94,21 @@
   const CURRENCIES = { INR: "INR — Indian Rupee", USD: "USD — US Dollar", EUR: "EUR — Euro", GBP: "GBP — British Pound" };
   const CURRENCY_SYMBOLS = { INR: "₹", USD: "$", EUR: "€", GBP: "£" };
 
+  // Real-world per-channel amount rules (RBI/NPCI-style limits used for client-side hints + validation)
+  const AMOUNT_RULES = {
+    RTGS: { min: 200000, minMsg: "RTGS requires a minimum of ₹2,00,000 per transaction" },
+    UPI: { max: 100000, maxMsg: "UPI transactions cannot exceed ₹1,00,000 per transaction" },
+    IMPS: { max: 500000, maxMsg: "IMPS transactions cannot exceed ₹5,00,000 per transaction" },
+  };
+
+  function amountHint(channel) {
+    const rule = AMOUNT_RULES[channel];
+    if (!rule) return "";
+    if (rule.min) return `Minimum ₹${rule.min.toLocaleString("en-IN")} per transaction`;
+    if (rule.max) return `Maximum ₹${rule.max.toLocaleString("en-IN")} per transaction`;
+    return "";
+  }
+
   const ACCOUNT_LABELS = {
     UPI: { source: "Payer UPI ID", destination: "Payee UPI ID", sourcePlaceholder: "payer@bank", destinationPlaceholder: "payee@bank" },
     NEFT: { source: "Sender Account Number", destination: "Beneficiary Account Number", sourcePlaceholder: "e.g. 000123456789", destinationPlaceholder: "e.g. 000987654321" },
@@ -112,6 +134,7 @@
     $all(".nav-item").forEach((n) => n.classList.toggle("active", n.dataset.view === view));
     if (view === "dashboard") loadPayments();
     if (view === "create") resetForm();
+    if (view === "analytics") loadAnalytics();
   }
 
   $all(".nav-item").forEach((btn) => btn.addEventListener("click", () => switchView(btn.dataset.view)));
@@ -137,6 +160,7 @@
     try {
       const page = await PaymentsApi.listPayments({
         status: state.status || undefined,
+        riskLevel: state.riskLevel || undefined,
         search: state.search || undefined,
         page: state.page,
         size: state.size,
@@ -174,7 +198,7 @@
   function renderTable(payments) {
     const tbody = $("#payments-tbody");
     if (!payments || payments.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" class="empty-state">No payments found. Create your first payment!</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No payments found. Create your first payment!</td></tr>`;
       return;
     }
     tbody.innerHTML = payments.map((p) => `
@@ -184,6 +208,7 @@
         <td><strong>${formatMoney(p.amount, p.currency)}</strong></td>
         <td class="mono">${p.destinationAccount}</td>
         <td><span class="status-badge status-${p.status}">${p.status}</span></td>
+        <td>${riskBadge(p.riskLevel)}</td>
         <td>${timeAgo(p.createdAt)}</td>
         <td>›</td>
       </tr>
@@ -221,11 +246,153 @@
     loadPayments();
   }));
 
+  $("#risk-filter").addEventListener("change", (e) => {
+    state.riskLevel = e.target.value;
+    state.page = 0;
+    loadPayments();
+  });
+
   $("#btn-refresh").addEventListener("click", loadPayments);
 
   function debounce(fn, delay) {
     let timer;
     return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), delay); };
+  }
+
+  // ---------------- Analytics ----------------
+  let volumeChart = null;
+  let typeChart = null;
+  let channelChart = null;
+
+  function fmtSeconds(s) {
+    if (s == null) return "—";
+    if (s < 60) return `${s.toFixed(1)}s`;
+    return `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`;
+  }
+
+  function fmtTotalValue(byCurrency) {
+    if (!byCurrency || Object.keys(byCurrency).length === 0) return "—";
+    return Object.entries(byCurrency)
+      .map(([ccy, amt]) => formatMoney(amt, ccy))
+      .join(" · ");
+  }
+
+  async function loadAnalytics() {
+    try {
+      const data = await PaymentsApi.getAnalytics();
+      renderAnalytics(data);
+    } catch (err) {
+      toast(`Failed to load analytics: ${err.message}`, "error");
+    }
+  }
+
+  function renderAnalytics(data) {
+    $("#analytics-mock-badge").classList.toggle("hidden", !data.mockData);
+
+    const k = data.kpis || {};
+    $("#kpi-total").textContent = k.totalPayments ?? 0;
+    $("#kpi-domestic").textContent = k.domesticPayments ?? 0;
+    $("#kpi-international").textContent = k.internationalPayments ?? 0;
+    $("#kpi-success").textContent = k.successfulPayments ?? 0;
+    $("#kpi-failed").textContent = k.failedPayments ?? 0;
+    $("#kpi-rate").textContent = `${(k.successRate ?? 0).toFixed ? k.successRate.toFixed(2) : k.successRate}%`;
+    $("#kpi-avg-time").textContent = fmtSeconds(k.averageProcessingTimeSeconds);
+    $("#kpi-total-value").textContent = fmtTotalValue(k.totalTransactionValueByCurrency);
+
+    renderVolumeChart(data.volumeTrend || []);
+    renderTypeChart(data.typeDistribution || { domestic: 0, international: 0 });
+    renderChannelChart(data.channelDistribution || []);
+    renderFailureAnalysis(data.failureAnalysis || []);
+    renderRecentActivity(data.recentActivity || []);
+  }
+
+  function renderVolumeChart(points) {
+    const ctx = document.getElementById("chart-volume");
+    const labels = points.map((p) => p.label);
+    const counts = points.map((p) => p.count);
+    if (volumeChart) volumeChart.destroy();
+    volumeChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "Payments",
+          data: counts,
+          borderColor: "#6c5ce7",
+          backgroundColor: "rgba(108,92,231,0.12)",
+          tension: 0.35,
+          fill: true,
+          pointBackgroundColor: "#6c5ce7",
+        }],
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+      },
+    });
+  }
+
+  function renderTypeChart(dist) {
+    const ctx = document.getElementById("chart-type");
+    if (typeChart) typeChart.destroy();
+    typeChart = new Chart(ctx, {
+      type: "pie",
+      data: {
+        labels: ["Domestic", "International"],
+        datasets: [{ data: [dist.domestic || 0, dist.international || 0], backgroundColor: ["#6c5ce7", "#00c896"] }],
+      },
+      options: { responsive: true, plugins: { legend: { position: "bottom" } } },
+    });
+  }
+
+  function renderChannelChart(channels) {
+    const ctx = document.getElementById("chart-channel");
+    if (channelChart) channelChart.destroy();
+    channelChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: channels.map((c) => c.channel),
+        datasets: [{ label: "Payments", data: channels.map((c) => c.count), backgroundColor: "#6c5ce7", borderRadius: 6 }],
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+      },
+    });
+  }
+
+  function renderFailureAnalysis(failures) {
+    const el = $("#failure-list");
+    if (!failures.length) {
+      el.innerHTML = `<div class="empty-analytics">No failures recorded 🎉</div>`;
+      return;
+    }
+    el.innerHTML = failures.map((f) => `
+      <div class="failure-row">
+        <div class="fr-code">${f.errorCode}</div>
+        <div class="failure-bar-track"><div class="failure-bar-fill" style="width:${f.percentage}%"></div></div>
+        <div class="fr-count">${f.count} · ${f.percentage.toFixed ? f.percentage.toFixed(1) : f.percentage}%</div>
+      </div>
+    `).join("");
+  }
+
+  function renderRecentActivity(activity) {
+    const el = $("#activity-list");
+    if (!activity.length) {
+      el.innerHTML = `<div class="empty-analytics">No activity yet.</div>`;
+      return;
+    }
+    el.innerHTML = activity.map((a) => `
+      <div class="activity-row">
+        <div class="ar-top">
+          <span class="ar-action">${a.action}</span>
+          <span class="ar-time">${timeAgo(a.timestamp)}</span>
+        </div>
+        <div class="ar-meta">${a.performedBy || "SYSTEM"} · ${a.previousStatus ? `${a.previousStatus} → ` : ""}${a.currentStatus}${a.remarks ? ` · ${a.remarks}` : ""}</div>
+      </div>
+    `).join("");
   }
 
   // ---------------- Payment Details Modal ----------------
@@ -238,27 +405,29 @@
 
   async function refreshDetails(id) {
     try {
-      const [payment, history] = await Promise.all([
+      const [payment, history, risk] = await Promise.all([
         PaymentsApi.getPayment(id),
         PaymentsApi.getHistory(id),
+        PaymentsApi.getRisk(id).catch(() => null),
       ]);
-      renderDetails(payment, history);
+      renderDetails(payment, history, risk);
     } catch (err) {
       $("#details-content").innerHTML = `<div class="error-box"><strong>Failed to load payment</strong>${err.message}</div>`;
     }
   }
 
-  function renderDetails(p, history) {
+  function renderDetails(p, history, risk) {
     const failureHtml = renderFailureSection(p, history);
     const methodDetailsHtml = renderMethodDetails(p);
+    const riskHtml = renderRiskPanel(p, risk);
 
-    const timelineHtml = history.map((h) => `
+    const auditHtml = history.map((h) => `
       <div class="timeline-item">
-        <div class="t-status">${h.fromStatus ? `${h.fromStatus} → ${h.toStatus}` : `${h.toStatus}`}</div>
-        <div class="t-meta">${formatDate(h.changedAt)} · triggered by ${h.triggeredBy}</div>
+        <div class="t-status">${h.action || (h.fromStatus ? `${h.fromStatus} → ${h.toStatus}` : `${h.toStatus}`)}</div>
+        <div class="t-meta">${formatDate(h.changedAt)} · performed by ${h.triggeredBy}${h.fromStatus ? ` · ${h.fromStatus} → ${h.toStatus}` : ` · → ${h.toStatus}`}</div>
         ${h.notes ? `<div class="t-notes">${h.notes}</div>` : ""}
       </div>
-    `).join("") || `<div class="t-meta">No history yet.</div>`;
+    `).join("") || `<div class="t-meta">No audit history yet.</div>`;
 
     $("#details-content").innerHTML = `
       <div class="detail-header">
@@ -269,21 +438,36 @@
         <span class="status-badge status-${p.status}">${p.status}</span>
       </div>
 
-      ${failureHtml}
-
-      <div class="detail-grid">
-        <div class="detail-item"><div class="label">Method</div><div class="value">${methodIcon(p.paymentMethod)} ${p.paymentMethod}</div></div>
-        <div class="detail-item"><div class="label">Reference</div><div class="value">${p.reference || "—"}</div></div>
-        <div class="detail-item"><div class="label">${accountLabels(p.paymentMethod).source}</div><div class="value mono">${p.sourceAccount}</div></div>
-        <div class="detail-item"><div class="label">${accountLabels(p.paymentMethod).destination}</div><div class="value mono">${p.destinationAccount}</div></div>
-        ${methodDetailsHtml}
-        <div class="detail-item"><div class="label">Created</div><div class="value">${formatDate(p.createdAt)}</div></div>
-        <div class="detail-item"><div class="label">Last Updated</div><div class="value">${formatDate(p.updatedAt)}</div></div>
+      <div class="detail-panel" data-panel="details">
+        ${failureHtml}
+        <div class="detail-grid">
+          <div class="detail-item"><div class="label">Payment ID</div><div class="value mono">${p.id}</div></div>
+          <div class="detail-item"><div class="label">Reference</div><div class="value">${p.reference || "—"}</div></div>
+          <div class="detail-item"><div class="label">Amount</div><div class="value">${formatMoney(p.amount, p.currency)}</div></div>
+          <div class="detail-item"><div class="label">Currency</div><div class="value">${p.currency}</div></div>
+          <div class="detail-item"><div class="label">Payment Type</div><div class="value">${p.paymentType || "—"}</div></div>
+          <div class="detail-item"><div class="label">Payment Channel</div><div class="value">${methodIcon(p.paymentMethod)} ${p.paymentMethod}</div></div>
+          <div class="detail-item"><div class="label">Current Status</div><div class="value"><span class="status-badge status-${p.status}">${p.status}</span></div></div>
+          <div class="detail-item"><div class="label">${accountLabels(p.paymentMethod).source}</div><div class="value mono">${p.sourceAccount}</div></div>
+          <div class="detail-item"><div class="label">${accountLabels(p.paymentMethod).destination}</div><div class="value mono">${p.destinationAccount}</div></div>
+          ${methodDetailsHtml}
+          <div class="detail-item"><div class="label">Created Date</div><div class="value">${formatDate(p.createdAt)}</div></div>
+          <div class="detail-item"><div class="label">Updated Date</div><div class="value">${formatDate(p.updatedAt)}</div></div>
+        </div>
       </div>
 
-      <div class="timeline-title">Status History</div>
-      <div class="timeline">${timelineHtml}</div>
+      <div class="detail-panel hidden" data-panel="risk">
+        ${riskHtml}
+      </div>
+
+      <div class="detail-panel hidden" data-panel="audit">
+        <div class="timeline-title">Audit Trail</div>
+        <div class="timeline">${auditHtml}</div>
+      </div>
     `;
+
+    $all("#detail-tabs .detail-tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === "details"));
+    $all(".detail-panel").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== "details"));
 
     if (p.status === "FAILED") {
       const retryBtn = document.getElementById("btn-retry-payment");
@@ -291,7 +475,83 @@
       const editBtn = document.getElementById("btn-edit-payment");
       if (editBtn) editBtn.addEventListener("click", () => editPayment(p));
     }
+
+    const approveBtn = document.getElementById("btn-approve-risk");
+    if (approveBtn) approveBtn.addEventListener("click", () => decideRisk(p.id, "APPROVE"));
+    const rejectBtn = document.getElementById("btn-reject-risk");
+    if (rejectBtn) rejectBtn.addEventListener("click", () => decideRisk(p.id, "REJECT"));
   }
+
+  // ---------------- Risk Assessment (Bank Operator Fraud Review) ----------------
+  function renderRiskPanel(p, risk) {
+    if (!p.riskLevel) {
+      return `<div class="t-meta">No fraud/risk assessment recorded for this payment.</div>`;
+    }
+
+    let banner = "";
+    if (p.fraudStatus === "BLOCKED") {
+      banner = `<div class="fraud-blocked-banner">⛔ Payment blocked due to high fraud risk.</div>`;
+    } else if (p.fraudStatus === "UNDER_REVIEW") {
+      banner = `
+        <div class="fraud-review-banner">
+          <div class="frb-title">⚠ This payment is held for bank operator review (MEDIUM risk).</div>
+          <div class="fraud-review-actions">
+            <button type="button" class="btn btn-approve" id="btn-approve-risk">Approve Payment</button>
+            <button type="button" class="btn btn-reject" id="btn-reject-risk">Reject Payment</button>
+          </div>
+        </div>`;
+    }
+
+    const rulesList = (risk && risk.triggeredRules && risk.triggeredRules.length)
+      ? risk.triggeredRules.map((r) => `<div class="risk-rule-item"><span class="rr-check">✓</span> ${r}</div>`).join("")
+      : `<div class="t-meta">No specific risk rules triggered.</div>`;
+
+    const fraudStatusLabel = { CLEARED: "Cleared", UNDER_REVIEW: "Under Review", BLOCKED: "Blocked" }[p.fraudStatus] || p.fraudStatus;
+
+    return `
+      ${banner}
+      <div class="risk-summary-grid">
+        <div class="risk-summary-card">
+          <span class="rs-label">Risk Level</span>
+          <span class="rs-value">${riskBadge(p.riskLevel)}</span>
+        </div>
+        <div class="risk-summary-card">
+          <span class="rs-label">Risk Score</span>
+          <span class="rs-value">${p.riskScore ?? "—"}/100</span>
+        </div>
+        <div class="risk-summary-card">
+          <span class="rs-label">Fraud Status</span>
+          <span class="rs-value">${fraudStatusLabel}</span>
+        </div>
+      </div>
+      <div class="risk-rules-title">Triggered Risk Rules</div>
+      <div class="risk-rules-list">${rulesList}</div>
+      ${risk ? `<div class="risk-meta-line">Validated at ${formatDate(risk.assessmentTimestamp)} · Decision: ${risk.decision || "—"}</div>` : ""}
+    `;
+  }
+
+  async function decideRisk(paymentId, decision) {
+    const btnId = decision === "APPROVE" ? "btn-approve-risk" : "btn-reject-risk";
+    const btn = document.getElementById(btnId);
+    if (btn) { btn.disabled = true; btn.textContent = decision === "APPROVE" ? "Approving…" : "Rejecting…"; }
+    try {
+      await PaymentsApi.decideRisk(paymentId, decision);
+      toast(decision === "APPROVE" ? "Payment approved — resuming processing." : "Payment rejected.", decision === "APPROVE" ? "success" : "error");
+      await refreshDetails(paymentId);
+      if (state.view === "dashboard") loadPayments();
+    } catch (err) {
+      toast(`Failed to ${decision.toLowerCase()} payment: ${err.message}`, "error");
+      if (btn) { btn.disabled = false; btn.textContent = decision === "APPROVE" ? "Approve Payment" : "Reject Payment"; }
+    }
+  }
+
+  $("#detail-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest(".detail-tab");
+    if (!btn) return;
+    $all("#detail-tabs .detail-tab").forEach((t) => t.classList.toggle("active", t === btn));
+    $all(".detail-panel").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== btn.dataset.tab));
+  });
+
 
   // ---------------- Failure Details (Feature 1) ----------------
   const FAILURE_META = {
@@ -463,6 +723,15 @@
     $("#f-source").placeholder = labels.sourcePlaceholder;
     $("#f-destination").placeholder = labels.destinationPlaceholder;
 
+    const isUpi = channel === "UPI";
+    $("#f-source").maxLength = isUpi ? 256 : 18;
+    $("#f-destination").maxLength = isUpi ? 256 : 18;
+    $("#f-source").inputMode = isUpi ? "email" : "numeric";
+    $("#f-destination").inputMode = isUpi ? "email" : "numeric";
+    $("#hint-source").textContent = isUpi ? "Valid UPI VPA e.g. name@bank" : "9-18 digit numeric account number";
+    $("#hint-destination").textContent = isUpi ? "Valid UPI VPA e.g. name@bank" : "9-18 digit numeric account number";
+    $("#hint-amount").textContent = amountHint(channel);
+
     $all(".channel-fields").forEach((f) => {
       const applicable = f.dataset.for.split(",").includes(channel);
       f.classList.toggle("hidden", !applicable);
@@ -484,6 +753,53 @@
 
   $all(".type-card").forEach((card) => card.addEventListener("click", () => selectPaymentType(card.dataset.type)));
   $all(".channel-card").forEach((card) => card.addEventListener("click", () => selectChannel(card.dataset.channel)));
+
+  // ---------------- Real-time strict input restrictions (typing-level) ----------------
+  function restrictInput(el, transformFn) {
+    if (!el) return;
+    el.addEventListener("input", () => {
+      const caretFromEnd = el.value.length - el.selectionStart;
+      const transformed = transformFn(el.value);
+      if (transformed !== el.value) {
+        el.value = transformed;
+        const pos = Math.max(0, el.value.length - caretFromEnd);
+        el.setSelectionRange(pos, pos);
+      }
+    });
+  }
+
+  // IFSC: uppercase letters + digits only, max 11 chars
+  restrictInput($("#f-ifsc"), (v) => v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11));
+  // SWIFT/BIC: uppercase letters + digits only, max 11 chars
+  restrictInput($("#f-swift-bic"), (v) => v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11));
+  // Routing number: digits only, max 9
+  restrictInput($("#f-routing-number"), (v) => v.replace(/\D/g, "").slice(0, 9));
+  // Mobile or account number (IMPS): digits only, max 18
+  restrictInput($("#f-mobile-or-account"), (v) => v.replace(/\D/g, "").slice(0, 18));
+
+  // Source/Destination: digits-only for bank-transfer channels, free VPA charset for UPI
+  function restrictAccountField(el) {
+    if (!el) return;
+    el.addEventListener("input", () => {
+      if (state.channel === "UPI") {
+        const filtered = el.value.replace(/[^\w.+\-@]/g, "").slice(0, 256);
+        if (filtered !== el.value) el.value = filtered;
+      } else if (state.channel) {
+        const filtered = el.value.replace(/\D/g, "").slice(0, 18);
+        if (filtered !== el.value) el.value = filtered;
+      }
+    });
+  }
+  restrictAccountField($("#f-source"));
+  restrictAccountField($("#f-destination"));
+
+  // Amount: block more than 2 decimal places as the user types
+  $("#f-amount").addEventListener("input", (e) => {
+    const v = e.target.value;
+    if (v.includes(".") && v.split(".")[1].length > 2) {
+      e.target.value = parseFloat(v).toFixed(2);
+    }
+  });
 
   $("#f-currency").addEventListener("change", (e) => {
     $("#currency-prefix").textContent = CURRENCY_SYMBOLS[e.target.value] || e.target.value;
@@ -520,12 +836,14 @@
       sourceAccount: $("#f-source").value.trim(),
       destinationAccount: $("#f-destination").value.trim(),
       paymentMethod: channel,
+      paymentType: state.paymentType,
       reference: $("#f-reference").value.trim() || null,
       idempotencyKey: crypto.randomUUID ? crypto.randomUUID() : `key-${Date.now()}-${Math.random()}`,
     };
 
     if (channel === "UPI") {
-      payload.upiDetails = { upiId: payload.sourceAccount };
+      // The payee's VPA is what actually resolves the recipient in a real UPI transfer.
+      payload.upiDetails = { upiId: payload.destinationAccount };
     } else if (channel === "NEFT" || channel === "RTGS" || channel === "IMPS") {
       payload.bankTransferDetails = {
         senderBank: $("#f-sender-bank").value,
@@ -546,11 +864,19 @@
     return payload;
   }
 
+  const UPI_VPA_PATTERN = /^[\w.+-]{2,256}@[A-Za-z]{2,64}$/;
+  const ACCOUNT_NUMBER_PATTERN = /^\d{9,18}$/;
+  const IFSC_PATTERN = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+  const SWIFT_BIC_PATTERN = /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/;
+  const MOBILE_OR_ACCOUNT_PATTERN = /^(\d{10}|\d{9,18})$/;
+  const ROUTING_NUMBER_PATTERN = /^\d{9}$/;
+
   function validateClientSide(payload) {
     clearErrors();
     let ok = true;
     const channel = state.channel;
     const labels = accountLabels(channel);
+
     if (!payload.amount || payload.amount <= 0) { setError("err-amount", "Enter a valid amount greater than 0"); ok = false; }
     if (!payload.sourceAccount) { setError("err-source", `${labels.source} is required`); ok = false; }
     if (!payload.destinationAccount) { setError("err-destination", `${labels.destination} is required`); ok = false; }
@@ -558,18 +884,51 @@
         payload.sourceAccount.toLowerCase() === payload.destinationAccount.toLowerCase()) {
       setError("err-destination", `Must differ from ${labels.source.toLowerCase()}`); ok = false;
     }
-    if (channel === "UPI" && !/^[\w.+-]{2,256}@[A-Za-z]{2,64}$/.test(payload.sourceAccount || "")) {
-      setError("err-source", "Enter a valid UPI ID e.g. name@bank"); ok = false;
+
+    // Real-world per-channel amount tier rules (RTGS minimum, UPI/IMPS caps)
+    const amountRule = AMOUNT_RULES[channel];
+    if (ok && amountRule && payload.amount) {
+      if (amountRule.min && payload.amount < amountRule.min) { setError("err-amount", amountRule.minMsg); ok = false; }
+      if (amountRule.max && payload.amount > amountRule.max) { setError("err-amount", amountRule.maxMsg); ok = false; }
     }
+
+    if (channel === "UPI") {
+      if (payload.sourceAccount && !UPI_VPA_PATTERN.test(payload.sourceAccount)) {
+        setError("err-source", "Enter a valid UPI ID e.g. name@bank"); ok = false;
+      }
+      if (payload.destinationAccount && !UPI_VPA_PATTERN.test(payload.destinationAccount)) {
+        setError("err-destination", "Enter a valid UPI ID e.g. name@bank"); ok = false;
+      }
+    } else if (channel === "NEFT" || channel === "RTGS" || channel === "IMPS" || channel === "SWIFT" || channel === "WIRE_TRANSFER") {
+      if (payload.sourceAccount && !ACCOUNT_NUMBER_PATTERN.test(payload.sourceAccount)) {
+        setError("err-source", "Account number must be 9-18 digits"); ok = false;
+      }
+      if (payload.destinationAccount && !ACCOUNT_NUMBER_PATTERN.test(payload.destinationAccount)) {
+        setError("err-destination", "Account number must be 9-18 digits"); ok = false;
+      }
+    }
+
     if ((channel === "NEFT" || channel === "RTGS" || channel === "IMPS") &&
-        (!payload.bankTransferDetails.ifscCode || !/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(payload.bankTransferDetails.ifscCode))) {
-      setError("err-ifsc", "Enter a valid IFSC code e.g. HDFC0001234"); ok = false;
+        (!payload.bankTransferDetails.ifscCode || !IFSC_PATTERN.test(payload.bankTransferDetails.ifscCode))) {
+      setError("err-ifsc", "Enter a valid 11-character IFSC code e.g. HDFC0001234"); ok = false;
     }
-    if (channel === "IMPS" && !payload.bankTransferDetails.mobileOrAccountNumber) {
-      setError("err-mobile-or-account", "Enter a mobile number or account number"); ok = false;
+    if (channel === "IMPS") {
+      const val = payload.bankTransferDetails.mobileOrAccountNumber;
+      if (!val || !MOBILE_OR_ACCOUNT_PATTERN.test(val)) {
+        setError("err-mobile-or-account", "Enter a 10-digit mobile number or a 9-18 digit account number"); ok = false;
+      }
     }
-    if ((channel === "SWIFT" || channel === "WIRE_TRANSFER") && !payload.internationalTransferDetails.swiftBicCode) {
-      setError("err-swift-bic", "Enter a valid SWIFT/BIC code"); ok = false;
+    if ((channel === "SWIFT" || channel === "WIRE_TRANSFER")) {
+      const bic = payload.internationalTransferDetails.swiftBicCode;
+      if (!bic || !SWIFT_BIC_PATTERN.test(bic)) {
+        setError("err-swift-bic", "Enter a valid 8 or 11 character SWIFT/BIC code"); ok = false;
+      }
+    }
+    if (channel === "WIRE_TRANSFER") {
+      const routing = payload.internationalTransferDetails.routingNumber;
+      if (routing && !ROUTING_NUMBER_PATTERN.test(routing)) {
+        setError("err-routing-number", "Routing number must be exactly 9 digits"); ok = false;
+      }
     }
     return ok;
   }
@@ -650,6 +1009,7 @@
           if (f.includes("ifsc")) setError("err-ifsc", d);
           if (f.includes("mobileoraccountnumber")) setError("err-mobile-or-account", d);
           if (f.includes("swiftbiccode")) setError("err-swift-bic", d);
+          if (f.includes("routingnumber")) setError("err-routing-number", d);
         });
       }
     } finally {
