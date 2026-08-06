@@ -24,12 +24,13 @@ public interface PaymentRepository extends JpaRepository<Payment, String> {
     @Query("select p from Payment p where " +
             "(:status is null or p.status = :status) and " +
             "(:riskLevel is null or p.riskLevel = :riskLevel) and " +
-            "(:search is null or lower(p.reference) like lower(concat('%', :search, '%')) " +
+            "(:customerId is null or p.customerId = :customerId) and " +
+            "(:search is null or (lower(p.reference) like lower(concat('%', :search, '%')) " +
             "  or lower(p.id) like lower(concat('%', :search, '%')) " +
             "  or lower(p.sourceAccount) like lower(concat('%', :search, '%')) " +
-            "  or lower(p.destinationAccount) like lower(concat('%', :search, '%')))")
+            "  or lower(p.destinationAccount) like lower(concat('%', :search, '%'))))")
     Page<Payment> search(@Param("status") PaymentStatus status, @Param("riskLevel") RiskLevel riskLevel,
-                          @Param("search") String search, Pageable pageable);
+                          @Param("search") String search, @Param("customerId") String customerId, Pageable pageable);
 
     List<Payment> findByStatusIn(List<PaymentStatus> statuses);
 

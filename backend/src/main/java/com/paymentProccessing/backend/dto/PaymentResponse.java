@@ -25,6 +25,7 @@ public class PaymentResponse {
 
     private String id;
     private String idempotencyKey;
+    private String customerId;
     private BigDecimal amount;
     private String currency;
     private String sourceAccount;
@@ -66,6 +67,7 @@ public class PaymentResponse {
         return PaymentResponse.builder()
                 .id(p.getId())
                 .idempotencyKey(p.getIdempotencyKey())
+                .customerId(p.getCustomerId())
                 .amount(p.getAmount())
                 .currency(p.getCurrency())
                 .sourceAccount(p.getSourceAccount())

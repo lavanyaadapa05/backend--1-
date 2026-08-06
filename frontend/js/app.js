@@ -12,6 +12,7 @@
     totalPages: 0,
     openPaymentId: null,
     submitting: false,
+    activeDetailTab: "details",
   };
 
   // ---------------- Utilities ----------------
@@ -101,12 +102,14 @@
     IMPS: { max: 500000, maxMsg: "IMPS transactions cannot exceed ₹5,00,000 per transaction" },
   };
 
+  // Global backend-enforced ceiling (applies to every channel, incl. NEFT / SWIFT / Wire Transfer)
+  const GLOBAL_MAX_AMOUNT = 1000000;
+
   function amountHint(channel) {
     const rule = AMOUNT_RULES[channel];
-    if (!rule) return "";
-    if (rule.min) return `Minimum ₹${rule.min.toLocaleString("en-IN")} per transaction`;
-    if (rule.max) return `Maximum ₹${rule.max.toLocaleString("en-IN")} per transaction`;
-    return "";
+    if (rule && rule.min) return `Minimum ₹${rule.min.toLocaleString("en-IN")} per transaction`;
+    if (rule && rule.max) return `Maximum ₹${rule.max.toLocaleString("en-IN")} per transaction`;
+    return `Maximum 10,00,000 (1,000,000) per transaction`;
   }
 
   const ACCOUNT_LABELS = {
@@ -398,6 +401,7 @@
   // ---------------- Payment Details Modal ----------------
   async function openDetails(id) {
     state.openPaymentId = id;
+    state.activeDetailTab = "details";
     $("#details-modal").classList.add("open");
     $("#details-content").innerHTML = "Loading…";
     await refreshDetails(id);
@@ -466,8 +470,8 @@
       </div>
     `;
 
-    $all("#detail-tabs .detail-tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === "details"));
-    $all(".detail-panel").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== "details"));
+    $all("#detail-tabs .detail-tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === state.activeDetailTab));
+    $all(".detail-panel").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== state.activeDetailTab));
 
     if (p.status === "FAILED") {
       const retryBtn = document.getElementById("btn-retry-payment");
@@ -548,6 +552,7 @@
   $("#detail-tabs").addEventListener("click", (e) => {
     const btn = e.target.closest(".detail-tab");
     if (!btn) return;
+    state.activeDetailTab = btn.dataset.tab;
     $all("#detail-tabs .detail-tab").forEach((t) => t.classList.toggle("active", t === btn));
     $all(".detail-panel").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.panel !== btn.dataset.tab));
   });
@@ -745,10 +750,34 @@
   }
 
   function selectChannel(channel) {
+    const previousChannel = state.channel;
     state.channel = channel;
     $all(".channel-card").forEach((c) => c.classList.toggle("active", c.dataset.channel === channel));
     $("#payment-form").classList.remove("hidden");
+    if (previousChannel && previousChannel !== channel) {
+      clearChannelSpecificInputs();
+    }
     updateFormForChannel(channel);
+  }
+
+  /**
+   * Clears the VALUES of every channel-specific input (IFSC, SWIFT/BIC,
+   * mobile-or-account, beneficiary country, payment purpose, routing number)
+   * whenever the user switches channel — e.g. SWIFT -> Wire Transfer —
+   * so stale data from the previous channel never lingers in the form.
+   * Source/Destination/Amount/Reference are intentionally preserved since
+   * they're common to every channel.
+   */
+  function clearChannelSpecificInputs() {
+    const ifsc = $("#f-ifsc"); if (ifsc) ifsc.value = "";
+    const swiftBic = $("#f-swift-bic"); if (swiftBic) swiftBic.value = "";
+    const mobileOrAccount = $("#f-mobile-or-account"); if (mobileOrAccount) mobileOrAccount.value = "";
+    const routingNumber = $("#f-routing-number"); if (routingNumber) routingNumber.value = "";
+    const beneficiaryCountry = $("#f-beneficiary-country"); if (beneficiaryCountry) beneficiaryCountry.selectedIndex = 0;
+    const paymentPurpose = $("#f-payment-purpose"); if (paymentPurpose) paymentPurpose.selectedIndex = 0;
+    const senderBank = $("#f-sender-bank"); if (senderBank) senderBank.selectedIndex = 0;
+    const beneficiaryBank = $("#f-beneficiary-bank"); if (beneficiaryBank) beneficiaryBank.selectedIndex = 0;
+    clearErrors();
   }
 
   $all(".type-card").forEach((card) => card.addEventListener("click", () => selectPaymentType(card.dataset.type)));
@@ -890,6 +919,11 @@
     if (ok && amountRule && payload.amount) {
       if (amountRule.min && payload.amount < amountRule.min) { setError("err-amount", amountRule.minMsg); ok = false; }
       if (amountRule.max && payload.amount > amountRule.max) { setError("err-amount", amountRule.maxMsg); ok = false; }
+    }
+    // Global backend-enforced ceiling applies to every channel (NEFT / SWIFT / Wire Transfer included)
+    if (ok && payload.amount && payload.amount > GLOBAL_MAX_AMOUNT) {
+      setError("err-amount", `Amount cannot exceed ${GLOBAL_MAX_AMOUNT.toLocaleString("en-IN")} per transaction`);
+      ok = false;
     }
 
     if (channel === "UPI") {
