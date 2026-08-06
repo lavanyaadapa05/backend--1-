@@ -25,6 +25,9 @@ public class CreatePaymentRequest {
     @Size(max = 100, message = "idempotencyKey must be at most 100 characters")
     private String idempotencyKey;
 
+    @Size(max = 100, message = "customerId must be at most 100 characters")
+    private String customerId;
+
     @NotNull(message = "amount is required")
     @DecimalMin(value = "0.01", message = "amount must be greater than 0")
     @DecimalMax(value = "1000000", message = "amount must not exceed 1,000,000")

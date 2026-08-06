@@ -44,6 +44,7 @@ public class PaymentController {
             @RequestParam(required = false) PaymentStatus status,
             @RequestParam(required = false) RiskLevel riskLevel,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String customerId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -51,7 +52,7 @@ public class PaymentController {
 
         Sort sort = Sort.by(Sort.Direction.fromString(direction), sortBy);
         Pageable pageable = PageRequest.of(page, size, sort);
-        return ResponseEntity.ok(paymentService.listPayments(status, riskLevel, search, pageable));
+        return ResponseEntity.ok(paymentService.listPayments(status, riskLevel, search, customerId, pageable));
     }
 
     @Operation(summary = "Get the full status transition audit trail for a payment")

@@ -4,6 +4,8 @@ import Dashboard from "./pages/Dashboard.jsx";
 import CreatePayment from "./pages/CreatePayment.jsx";
 import Analytics from "./pages/Analytics.jsx";
 import History from "./pages/History.jsx";
+import Revenue from "./pages/Revenue.jsx";
+import PortalLanding from "./pages/PortalLanding.jsx";
 import PaymentDetailsModal from "./components/PaymentDetailsModal.jsx";
 import ThemeToggle, { useTheme } from "./ThemeToggle.jsx";
 
@@ -16,6 +18,7 @@ const NAV_ITEMS = [
 
 export default function App() {
   const [view, setView] = useState("dashboard");
+  const [portal, setPortal] = useState(() => localStorage.getItem("payflow-portal"));
   const [connected, setConnected] = useState(false);
   const [theme, setTheme] = useTheme();
   const [navOpen, setNavOpen] = useState(false);
@@ -46,6 +49,25 @@ export default function App() {
     setNavOpen(false);
   }
 
+  function switchPortal() {
+    localStorage.removeItem("payflow-portal");
+    setNavOpen(false);
+    setOpenPaymentId(null);
+    setView("dashboard");
+    setPortal(null);
+  }
+
+  if (!portal) return <PortalLanding onSelect={(selected) => { localStorage.setItem("payflow-portal", selected); setPortal(selected); }} />;
+  const visibleNavItems = portal === "customer"
+    ? NAV_ITEMS.filter((item) => ["dashboard", "create", "history"].includes(item.view))
+    : [
+        { view: "dashboard", label: "Dashboard", emoji: "⌂" },
+        { view: "payments", label: "Payments", emoji: "◫" },
+        { view: "analytics", label: "Analytics", emoji: "◒" },
+        { view: "revenue", label: "Revenue Dashboard", emoji: "◈" },
+        { view: "risk", label: "Risk Monitoring", emoji: "◇" },
+      ];
+
   return (
     <div className="app-shell top-layout">
       <header className="topbar">
@@ -55,7 +77,7 @@ export default function App() {
         </div>
 
         <nav className="topnav">
-          {NAV_ITEMS.map((item) => (
+          {visibleNavItems.map((item) => (
             <button
               key={item.view}
               className={`nav-item ${view === item.view ? "active" : ""}`}
@@ -72,6 +94,9 @@ export default function App() {
             <div className={`pulse-dot ${connected ? "online" : ""}`} />
             <span>{connected ? "Connected" : "Offline"}</span>
           </div>
+          <button type="button" className="portal-switch" onClick={switchPortal} title="Choose a different portal">
+            Switch portal
+          </button>
           <ThemeToggle theme={theme} onToggle={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} />
           <button
             type="button"
@@ -86,7 +111,7 @@ export default function App() {
 
       {navOpen && (
         <div className="mobile-nav-panel">
-          {NAV_ITEMS.map((item) => (
+          {visibleNavItems.map((item) => (
             <button
               key={item.view}
               className={`nav-item ${view === item.view ? "active" : ""}`}
@@ -107,6 +132,7 @@ export default function App() {
               onNewPayment={() => setView("create")}
               onOpenPayment={setOpenPaymentId}
               refreshToken={refreshToken}
+              customerPortal={portal === "customer"}
             />
           )}
         </section>
@@ -123,7 +149,16 @@ export default function App() {
           )}
         </section>
         <section className={`view ${view === "analytics" ? "active" : ""}`}>
-          {view === "analytics" && <Analytics />}
+          {view === "analytics" && portal === "bank" && <Analytics />}
+        </section>
+        <section className={`view ${view === "payments" ? "active" : ""}`}>
+          {view === "payments" && portal === "bank" && <Dashboard onNewPayment={() => {}} onOpenPayment={setOpenPaymentId} refreshToken={refreshToken} />}
+        </section>
+        <section className={`view ${view === "revenue" ? "active" : ""}`}>
+          {view === "revenue" && portal === "bank" && <Revenue />}
+        </section>
+        <section className={`view ${view === "risk" ? "active" : ""}`}>
+          {view === "risk" && portal === "bank" && <Dashboard onNewPayment={() => {}} onOpenPayment={setOpenPaymentId} refreshToken={refreshToken} riskOnly />}
         </section>
         <section className={`view ${view === "history" ? "active" : ""}`}>
           {view === "history" && <History onOpenPayment={setOpenPaymentId} />}

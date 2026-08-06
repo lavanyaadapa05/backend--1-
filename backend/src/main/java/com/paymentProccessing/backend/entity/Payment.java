@@ -46,6 +46,10 @@ public class Payment {
     @Column(length = 100, unique = true)
     private String idempotencyKey;
 
+    /** Prototype customer scope. A real deployment would derive this from authenticated identity. */
+    @Column(nullable = false, length = 100)
+    private String customerId;
+
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal amount;
 

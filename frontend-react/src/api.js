@@ -2,6 +2,13 @@
 import { APP_CONFIG } from "./config.js";
 
 const BASE = APP_CONFIG.API_BASE_URL;
+const CUSTOMER_KEY = "payflow-customer-id";
+
+function customerId() {
+  let id = localStorage.getItem(CUSTOMER_KEY);
+  if (!id) { id = `customer-${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`; localStorage.setItem(CUSTOMER_KEY, id); }
+  return id;
+}
 
 async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
@@ -31,11 +38,12 @@ export const PaymentsApi = {
   getPayment(id) {
     return request(`/payments/${id}`);
   },
-  listPayments({ status, riskLevel, search, page = 0, size = 8, sortBy = "createdAt", direction = "DESC" } = {}) {
+  listPayments({ status, riskLevel, search, customerId: scopeCustomerId, page = 0, size = 8, sortBy = "createdAt", direction = "DESC" } = {}) {
     const params = new URLSearchParams();
     if (status) params.set("status", status);
     if (riskLevel) params.set("riskLevel", riskLevel);
     if (search) params.set("search", search);
+    if (scopeCustomerId) params.set("customerId", scopeCustomerId);
     params.set("page", page);
     params.set("size", size);
     params.set("sortBy", sortBy);
@@ -54,6 +62,8 @@ export const PaymentsApi = {
   getAnalytics() {
     return request("/analytics");
   },
+  getRevenue() { return request("/revenue"); },
+  customerId,
   updateStatus(id, status, notes) {
     return request(`/payments/${id}/status`, { method: "PATCH", body: JSON.stringify({ status, notes }) });
   },

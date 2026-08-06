@@ -105,6 +105,7 @@ export default function CreatePayment({ onDone, onCreated }) {
       paymentMethod: channel,
       paymentType,
       reference: fields.reference.trim() || null,
+      customerId: PaymentsApi.customerId(),
       idempotencyKey: crypto.randomUUID ? crypto.randomUUID() : `key-${Date.now()}-${Math.random()}`,
     };
     if (channel === "UPI") {

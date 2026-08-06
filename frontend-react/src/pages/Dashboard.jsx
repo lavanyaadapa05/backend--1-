@@ -17,9 +17,9 @@ function RiskBadge({ level }) {
   return <span className={`risk-badge ${cls}`}>{text}</span>;
 }
 
-export default function Dashboard({ onNewPayment, onOpenPayment, refreshToken }) {
+export default function Dashboard({ onNewPayment, onOpenPayment, refreshToken, customerPortal = false, riskOnly = false }) {
   const [status, setStatus] = useState("");
-  const [riskLevel, setRiskLevel] = useState("");
+  const [riskLevel, setRiskLevel] = useState(riskOnly ? "HIGH" : "");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [pageData, setPageData] = useState({ content: [], totalPages: 0 });
@@ -27,6 +27,7 @@ export default function Dashboard({ onNewPayment, onOpenPayment, refreshToken })
   const [loadError, setLoadError] = useState(false);
   const searchDebounce = useRef(null);
   const size = APP_CONFIG.PAGE_SIZE;
+  const customerId = customerPortal ? PaymentsApi.customerId() : undefined;
 
   const loadPayments = useCallback(async () => {
     try {
@@ -34,6 +35,7 @@ export default function Dashboard({ onNewPayment, onOpenPayment, refreshToken })
         status: status || undefined,
         riskLevel: riskLevel || undefined,
         search: search || undefined,
+        customerId,
         page,
         size,
       });
@@ -42,24 +44,24 @@ export default function Dashboard({ onNewPayment, onOpenPayment, refreshToken })
     } catch (err) {
       setLoadError(true);
     }
-  }, [status, riskLevel, search, page, size]);
+  }, [status, riskLevel, search, customerId, page, size]);
 
   const loadStats = useCallback(async () => {
     try {
       const [all, created, validated, sent, completed, failed] = await Promise.all([
-        PaymentsApi.listPayments({ page: 0, size: 1 }),
-        PaymentsApi.listPayments({ status: "CREATED", page: 0, size: 1 }),
-        PaymentsApi.listPayments({ status: "VALIDATED", page: 0, size: 1 }),
-        PaymentsApi.listPayments({ status: "SENT", page: 0, size: 1 }),
-        PaymentsApi.listPayments({ status: "COMPLETED", page: 0, size: 1 }),
-        PaymentsApi.listPayments({ status: "FAILED", page: 0, size: 1 }),
+        PaymentsApi.listPayments({ customerId, page: 0, size: 1 }),
+        PaymentsApi.listPayments({ customerId, status: "CREATED", page: 0, size: 1 }),
+        PaymentsApi.listPayments({ customerId, status: "VALIDATED", page: 0, size: 1 }),
+        PaymentsApi.listPayments({ customerId, status: "SENT", page: 0, size: 1 }),
+        PaymentsApi.listPayments({ customerId, status: "COMPLETED", page: 0, size: 1 }),
+        PaymentsApi.listPayments({ customerId, status: "FAILED", page: 0, size: 1 }),
       ]);
       setStats({
         total: all.totalElements, created: created.totalElements, validated: validated.totalElements,
         sent: sent.totalElements, completed: completed.totalElements, failed: failed.totalElements,
       });
     } catch (e) { /* silent */ }
-  }, []);
+  }, [customerId]);
 
   useEffect(() => { loadPayments(); loadStats(); }, [loadPayments, loadStats]);
 
@@ -91,10 +93,10 @@ export default function Dashboard({ onNewPayment, onOpenPayment, refreshToken })
       <header className="view-header">
         <div>
           <span className="page-kicker">LIVE OPERATIONS</span>
-          <h1>Payment command center</h1>
-          <p className="subtitle">Monitor payment movement, risk posture, and every decision from one clear operational view.</p>
+          <h1>{riskOnly ? "Risk monitoring" : "Payment command center"}</h1>
+          <p className="subtitle">{riskOnly ? "Review high-risk payments, investigate assessments, and take decisions from the payment detail view." : "Monitor payment movement, risk posture, and every decision from one clear operational view."}</p>
         </div>
-        <button className="btn btn-primary" onClick={onNewPayment}>+ Create payment</button>
+        {!riskOnly && customerPortal && onNewPayment && <button className="btn btn-primary" onClick={onNewPayment}>+ Create payment</button>}
       </header>
 
       <section className="command-hero">

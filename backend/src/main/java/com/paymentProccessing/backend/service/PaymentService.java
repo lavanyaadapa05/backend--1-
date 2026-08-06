@@ -57,6 +57,7 @@ public class PaymentService {
         Payment payment = Payment.builder()
                 .id(java.util.UUID.randomUUID().toString())
                 .idempotencyKey(request.getIdempotencyKey())
+                .customerId(request.getCustomerId() == null || request.getCustomerId().isBlank() ? "DEMO-CUSTOMER" : request.getCustomerId())
                 .amount(request.getAmount())
                 .currency(request.getCurrency().toUpperCase())
                 .sourceAccount(request.getSourceAccount())
@@ -178,8 +179,9 @@ public class PaymentService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<PaymentResponse> listPayments(PaymentStatus status, RiskLevel riskLevel, String search, Pageable pageable) {
-        Page<Payment> page = paymentRepository.search(status, riskLevel, (search == null || search.isBlank()) ? null : search, pageable);
+    public PageResponse<PaymentResponse> listPayments(PaymentStatus status, RiskLevel riskLevel, String search, String customerId, Pageable pageable) {
+        Page<Payment> page = paymentRepository.search(status, riskLevel, (search == null || search.isBlank()) ? null : search,
+                (customerId == null || customerId.isBlank()) ? null : customerId, pageable);
         List<PaymentResponse> content = page.getContent().stream().map(PaymentResponse::from).toList();
         return PageResponse.<PaymentResponse>builder()
                 .content(content)
